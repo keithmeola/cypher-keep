@@ -866,12 +866,215 @@ footer {
 /* hash input hidden/visible */
 .hidden { display: none !important; }
 
+/* ── NOSTR ── */
+.nostr-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  background: var(--purple-bg);
+  border: 1px solid var(--purple-border);
+  color: var(--purple-lt);
+  font-family: var(--font-sans);
+  font-size: 12px;
+  font-weight: 500;
+  padding: 5px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+
+.nostr-btn:hover { background: rgba(124,58,237,0.18); border-color: var(--purple); }
+
+.nostr-btn.connected {
+  background: rgba(124,58,237,0.06);
+  border-color: var(--purple-border);
+  color: var(--purple-lt);
+  cursor: default;
+}
+
+.nostr-npub {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.02em;
+}
+
+.nostr-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--success);
+  flex-shrink: 0;
+}
+
+/* Nostr confirm overlay */
+.overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(5,7,15,0.8);
+  backdrop-filter: blur(4px);
+  z-index: 200;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.overlay.show { display: flex; }
+
+.overlay-box {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 28px;
+  max-width: 440px;
+  width: 100%;
+  animation: fadeIn 0.2s ease;
+}
+
+.overlay-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 12px;
+}
+
+.overlay-body {
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.75;
+  margin-bottom: 20px;
+}
+
+.overlay-body strong { color: var(--text-primary); }
+
+.overlay-body code {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--purple-lt);
+  background: var(--bg-input);
+  padding: 1px 5px;
+  border-radius: 3px;
+  word-break: break-all;
+}
+
+.overlay-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+/* Stamps history list */
+.stamps-list { display: flex; flex-direction: column; gap: 8px; }
+
+.stamp-item {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px 16px;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px 16px;
+  align-items: center;
+  transition: border-color 0.15s;
+}
+
+.stamp-item:hover { border-color: var(--border-focus); }
+
+.stamp-item-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.stamp-item-hash {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--purple-lt);
+  letter-spacing: 0.02em;
+  margin-top: 2px;
+}
+
+.stamp-item-time {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  margin-top: 3px;
+}
+
+.stamp-item-actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+  align-items: center;
+}
+
+.btn-nostr-link {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--purple-lt);
+  background: var(--purple-bg);
+  border: 1px solid var(--purple-border);
+  border-radius: 5px;
+  padding: 4px 10px;
+  text-decoration: none;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+
+.btn-nostr-link:hover { background: rgba(124,58,237,0.18); }
+
+.stamps-empty {
+  text-align: center;
+  padding: 48px 24px;
+  color: var(--text-disabled);
+  font-size: 13px;
+  line-height: 1.8;
+}
+
+.stamps-loading {
+  text-align: center;
+  padding: 40px;
+  color: var(--text-tertiary);
+  font-size: 13px;
+}
+
+.relay-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--text-tertiary);
+  margin-bottom: 16px;
+}
+
+.relay-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--border-focus);
+  flex-shrink: 0;
+}
+
+.relay-dot.ok     { background: var(--success); }
+.relay-dot.active { background: var(--orange); animation: pulse 1s ease infinite; }
+.relay-dot.fail   { background: var(--error); }
+
+@keyframes pulse {
+  0%,100% { opacity: 1; }
+  50%      { opacity: 0.4; }
+}
+
 /* ── RESPONSIVE ── */
 @media (max-width: 580px) {
   .coming-grid { grid-template-columns: 1fr; }
   .meta-table  { grid-template-columns: 1fr; }
   nav { display: none; }
   .view { padding: 24px 0 60px; }
+  .stamp-item { grid-template-columns: 1fr; }
 }
 </style>
 </head>
@@ -901,9 +1104,19 @@ footer {
         <button class="nav-btn active" id="nav-stamp" onclick="switchView('stamp')">Stamp</button>
         <button class="nav-btn" id="nav-verify" onclick="switchView('verify')">Verify</button>
         <button class="nav-btn" id="nav-encrypt" onclick="switchView('encrypt')">Encrypt</button>
+        <button class="nav-btn" id="nav-nostr" onclick="switchView('nostr')" style="display:none">My Stamps</button>
       </nav>
 
-      <div class="header-badge">Local · No server</div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <button class="nostr-btn" id="nostr-login-btn" onclick="nostrLogin()" title="Connect Nostr extension">
+          <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
+            <polygon points="6.5,1 12,4 12,9 6.5,12 1,9 1,4" stroke="#a78bfa" stroke-width="1" fill="rgba(124,58,237,0.15)"/>
+            <circle cx="6.5" cy="6.5" r="1.8" stroke="#a78bfa" stroke-width="1" fill="none"/>
+          </svg>
+          Connect Nostr
+        </button>
+        <div class="header-badge">Local · No server</div>
+      </div>
 
     </div>
   </div>
@@ -1059,21 +1272,66 @@ footer {
     </div>
   </div>
 
+  <!-- Step 3: Post to Nostr (shown after stamp, if logged in) -->
+  <div id="nostr-post-section" style="display:none;margin-top:0">
+    <div class="step-label" style="margin-top:6px">
+      <div class="step-num" id="sn3">3</div>
+      <div class="step-title">Announce on Nostr <span style="font-weight:400;color:var(--text-disabled);text-transform:none;font-size:11px;letter-spacing:0">— optional</span></div>
+    </div>
+    <div class="card">
+      <div class="card-body">
+        <p style="font-size:13px;color:var(--text-secondary);line-height:1.75;margin-bottom:16px">
+          Post your stamp as a public, censorship-resistant Nostr event. Your hash, filename, and pending OTS proof will be permanently recorded under your Nostr identity.
+        </p>
+        <div class="panel warning" style="margin-bottom:14px;display:none" id="nostr-privacy-warning">
+          <div class="panel-title amber">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+              <path d="M7 1.5L13 12H1L7 1.5Z" stroke="#f59e0b" stroke-width="1" fill="none"/>
+              <line x1="7" y1="6" x2="7" y2="9" stroke="#f59e0b" stroke-width="1.2"/>
+              <circle cx="7" cy="10.5" r="0.6" fill="#f59e0b"/>
+            </svg>
+            Posting makes your hash public
+          </div>
+          <p>Anyone who possesses the original file can confirm you stamped it. If your content is sensitive, consider whether public attestation is appropriate before proceeding.</p>
+        </div>
+        <button class="btn btn-primary" id="post-nostr-btn" onclick="confirmNostrPost()">
+          <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
+            <polygon points="6.5,1 12,4 12,9 6.5,12 1,9 1,4" stroke="#fff" stroke-width="1" fill="rgba(255,255,255,0.15)"/>
+            <circle cx="6.5" cy="6.5" r="1.8" stroke="#fff" stroke-width="1" fill="none"/>
+          </svg>
+          Post to Nostr
+        </button>
+        <div class="panel success" id="nostr-post-success" style="display:none;margin-top:14px">
+          <div class="panel-title green">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+              <circle cx="7" cy="7" r="6" stroke="#22c55e" stroke-width="1"/>
+              <polyline points="4,7 6.5,9.5 10.5,4.5" stroke="#22c55e" stroke-width="1.3" fill="none"/>
+            </svg>
+            Published to Nostr
+          </div>
+          <p>Your stamp has been announced. The embedded proof is <strong>pending Bitcoin confirmation</strong> (~1–2 hours). Keep your <strong>.ots file</strong> — it will carry the confirmed proof once the block is mined.</p>
+          <div class="btn-row">
+            <a class="btn btn-secondary" id="nostr-event-link" href="#" target="_blank" rel="noopener">View on njump ↗</a>
+          </div>
+        </div>
+        <div class="panel error" id="nostr-post-error" style="display:none;margin-top:14px">
+          <div class="panel-title red">Publish failed</div>
+          <p id="nostr-post-error-msg">Could not publish to relays. Check your extension and try again.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Coming soon -->
   <div class="divider"></div>
 
   <p style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.07em;color:var(--text-disabled);margin-bottom:14px">Coming in next phases</p>
 
   <div class="coming-grid">
-    <div class="coming-card">
-      <div class="coming-badge">Phase 2</div>
-      <h3>Nostr integration</h3>
-      <p>Login with your Nostr key. Post your stamp as a permanent, censorship-resistant Nostr event. Browse your full stamp history via relay query.</p>
-    </div>
-    <div class="coming-card">
+    <div class="coming-card full">
       <div class="coming-badge">Phase 3</div>
       <h3>Arweave archival</h3>
-      <p>Archive your content and .ots proof to the Arweave permaweb. One-time fee, stored forever. Transaction ID recorded in your Nostr event.</p>
+      <p>Archive your content and confirmed .ots proof to the Arweave permaweb. One-time fee, stored forever. Transaction ID recorded in your Nostr event for a complete, permanent chain of custody.</p>
     </div>
   </div>
 
@@ -1345,12 +1603,65 @@ footer {
 </div>
 </div>
 
+<!-- ══════════════════════════ NOSTR / MY STAMPS ══════════════════════════ -->
+<div class="view" id="view-nostr">
+<div class="container">
+
+  <div class="page-header">
+    <h1>My Stamps</h1>
+    <p>Your Cypher Keep stamps posted to Nostr, queried live from public relays. Each entry links to the permanent Nostr event carrying your hash and pending OTS proof.</p>
+  </div>
+
+  <div class="relay-status">
+    <div class="relay-dot" id="relay-dot"></div>
+    <span id="relay-status-text">Not connected</span>
+  </div>
+
+  <div id="stamps-container">
+    <div class="stamps-empty" id="stamps-empty" style="display:none">
+      <div style="font-size:28px;margin-bottom:12px;opacity:0.3">◈</div>
+      No stamps found on Nostr yet.<br>
+      <span style="color:var(--text-disabled)">Stamp a file and post it to Nostr to build your history.</span>
+    </div>
+    <div class="stamps-loading" id="stamps-loading" style="display:none">
+      Querying relays…
+    </div>
+    <div class="stamps-list" id="stamps-list"></div>
+  </div>
+
+  <div style="margin-top:24px;display:flex;gap:8px;flex-wrap:wrap">
+    <button class="btn btn-secondary" onclick="loadStamps()" id="refresh-stamps-btn">Refresh</button>
+  </div>
+
+</div>
+</div>
+
+<!-- Nostr post confirmation overlay -->
+<div class="overlay" id="nostr-confirm-overlay">
+  <div class="overlay-box">
+    <div class="overlay-title">Post stamp to Nostr?</div>
+    <div class="overlay-body">
+      This will publish a public Nostr event containing:
+      <br><br>
+      <strong>File:</strong> <span id="confirm-filename">—</span><br>
+      <strong>SHA-256:</strong> <code id="confirm-hash">—</code><br>
+      <strong>Proof:</strong> Pending OTS receipt (base64)<br>
+      <br>
+      Anyone who has your original file can confirm you stamped it. <strong>This event is permanent and public.</strong>
+    </div>
+    <div class="overlay-actions">
+      <button class="btn btn-secondary" onclick="closeOverlay()">Cancel</button>
+      <button class="btn btn-primary" onclick="doNostrPost()">Publish</button>
+    </div>
+  </div>
+</div>
+
 <!-- ── FOOTER ── -->
 <footer>
   <div class="container">
     <div class="footer-inner">
       <div class="footer-left">
-        Cypher Keep · Phase 1 · Open source ·
+        Cypher Keep · Phase 2 · Open source ·
         SHA-256 via Web Crypto API ·
         <a href="https://opentimestamps.org" target="_blank" rel="noopener">OpenTimestamps</a>
         · All computation is local. Nothing leaves your browser.
@@ -1360,6 +1671,7 @@ footer {
         <span class="tag">OpenTimestamps</span>
         <span class="tag">Bitcoin</span>
         <span class="tag">AES-256-GCM</span>
+        <span class="tag">Nostr</span>
       </div>
     </div>
   </div>
@@ -1379,6 +1691,12 @@ let verifyHash=null, verifyOTS=null, verifyOTSName=null;
 let encFile=null, encryptedBlob=null, encryptedName=null;
 let decFile=null, decryptedBlob=null, decryptedName=null;
 
+// Nostr state
+let nostrPubkey=null;
+let lastPostedEventId=null;
+const NOSTR_RELAYS=['wss://relay.damus.io','wss://nos.lol','wss://relay.nostr.band'];
+const NOSTR_TAG='cypherkeep';
+
 // ── NAV ──
 function switchView(name) {
   document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
@@ -1386,6 +1704,7 @@ function switchView(name) {
   document.getElementById('view-'+name).classList.add('active');
   document.getElementById('nav-'+name).classList.add('active');
   window.scrollTo({top:0,behavior:'smooth'});
+  if(name==='nostr'&&nostrPubkey) loadStamps();
 }
 
 // ── STAMP MODE ──
@@ -1446,6 +1765,7 @@ function resetStampUI() {
   document.getElementById('ots-log').classList.remove('show');
   document.getElementById('stamp-success').classList.remove('show');
   document.getElementById('prog-bar').style.width='0%';
+  document.getElementById('nostr-post-section').style.display='none';
 }
 
 // ── MANUAL HASH ──
@@ -1549,6 +1869,7 @@ async function doStamp() {
   document.getElementById('sn2').classList.add('done');
   document.getElementById('sn2').textContent='✓';
   toast('Timestamp submitted ✓');
+  if(nostrPubkey) showNostrPostSection();
 }
 
 function setLog(id,state,text) {
@@ -1573,12 +1894,12 @@ function downloadOTS() {
 
 function downloadMetaJSON() {
   if(!currentHash)return;
-  const meta={tool:'Cypher Keep',version:'1.0.0',phase:1,
+  const meta={tool:'Cypher Keep',version:'2.0.0',phase:2,
     file:currentFile?{name:currentFile.name,size:currentFile.size,type:currentFile.type||'unknown'}:null,
     sha256:currentHash,timestamp:stampedAt||new Date().toISOString(),
     ots_file:otsFilename||null,calendar:'OpenTimestamps / Bitcoin',
     note:document.getElementById('note-input').value.trim()||null,
-    nostr_event:null,arweave_id:null};
+    nostr_event_id:window._lastNostrEventId||null,arweave_id:null};
   dlBlob(new Blob([JSON.stringify(meta,null,2)],{type:'application/json'}),
     (currentFile?currentFile.name:'content')+'.ckmeta.json');
   toast('Metadata downloaded');
@@ -1743,6 +2064,320 @@ async function doDecrypt() {
 }
 
 function downloadDecrypted(){if(!decryptedBlob)return;dlBlob(decryptedBlob,decryptedName);}
+
+// ── NOSTR LOGIN ──
+async function nostrLogin() {
+  if(!window.nostr) {
+    toast('No Nostr extension found. Install Alby or nos2x.',true);
+    return;
+  }
+  try {
+    const pk=await window.nostr.getPublicKey();
+    if(!pk) throw new Error('No key returned');
+    nostrPubkey=pk;
+    const npub=pubkeyToNpub(pk);
+    const short=npub.substring(0,8)+'…'+npub.substring(npub.length-4);
+    const btn=document.getElementById('nostr-login-btn');
+    btn.innerHTML=`<div class="nostr-dot"></div><span class="nostr-npub">${short}</span>`;
+    btn.classList.add('connected');
+    btn.onclick=null;
+    btn.title=npub;
+    document.getElementById('nav-nostr').style.display='';
+    // Show post section if stamp already done
+    if(otsBytes) showNostrPostSection();
+    toast('Nostr connected ✓');
+  } catch(e) {
+    toast('Nostr connection failed: '+e.message,true);
+  }
+}
+
+function showNostrPostSection() {
+  const sec=document.getElementById('nostr-post-section');
+  sec.style.display='block';
+  document.getElementById('nostr-privacy-warning').style.display='block';
+  document.getElementById('nostr-post-success').style.display='none';
+  document.getElementById('nostr-post-error').style.display='none';
+}
+
+// ── NOSTR CONFIRM / POST ──
+function confirmNostrPost() {
+  if(!nostrPubkey||!currentHash||!otsBytes) return;
+  const fname=currentFile?currentFile.name:'content';
+  document.getElementById('confirm-filename').textContent=fname;
+  document.getElementById('confirm-hash').textContent=currentHash.substring(0,16)+'…'+currentHash.substring(48);
+  document.getElementById('nostr-confirm-overlay').classList.add('show');
+}
+
+function closeOverlay() {
+  document.getElementById('nostr-confirm-overlay').classList.remove('show');
+}
+
+async function doNostrPost() {
+  closeOverlay();
+  const btn=document.getElementById('post-nostr-btn');
+  btn.disabled=true;
+  btn.textContent='Publishing…';
+  document.getElementById('nostr-post-error').style.display='none';
+
+  try {
+    const fname=currentFile?currentFile.name:'content';
+    const otsB64=uint8ToBase64(otsBytes);
+    const note=document.getElementById('note-input').value.trim();
+
+    const content=[
+      '📌 Cypher Keep — Content Authentication Stamp',
+      '',
+      `File: ${fname}`,
+      `SHA-256: ${currentHash}`,
+      `Stamped: ${stampedAt}`,
+      `Calendar: OpenTimestamps / Bitcoin`,
+      `Status: Pending Bitcoin block confirmation (~1–2 hours)`,
+      note?`Note: ${note}`:'',
+      '',
+      `OTS Proof (pending, base64): ${otsB64}`,
+      '',
+      `Verify: https://opentimestamps.org`,
+      `Tool: https://keithmeola.github.io/cypher-keep/`
+    ].filter(l=>l!==null&&!(l===''&&false)).join('\n').replace(/\n{3,}/g,'\n\n');
+
+    const event={
+      kind:1,
+      created_at:Math.floor(Date.now()/1000),
+      tags:[
+        ['t',NOSTR_TAG],
+        ['t','timestamp'],
+        ['t','sha256'],
+        ['sha256',currentHash],
+        ['filename',fname]
+      ],
+      content,
+      pubkey:nostrPubkey
+    };
+
+    // Sign via extension
+    const signed=await window.nostr.signEvent(event);
+    if(!signed||!signed.id) throw new Error('Signing failed or cancelled');
+    lastPostedEventId=signed.id;
+
+    // Publish to relays
+    const results=await publishToRelays(signed);
+    const ok=results.filter(r=>r.ok).length;
+    if(ok===0) throw new Error('All relays rejected the event');
+
+    // Success UI
+    document.getElementById('nostr-post-success').style.display='block';
+    const njumpUrl=`https://njump.me/${signed.id}`;
+    document.getElementById('nostr-event-link').href=njumpUrl;
+    btn.textContent='Posted ✓';
+    toast(`Published to ${ok}/${results.length} relays ✓`);
+
+    // Update metadata JSON reference
+    // (nostr_event_id now available if user re-downloads meta)
+    window._lastNostrEventId=signed.id;
+
+  } catch(e) {
+    document.getElementById('nostr-post-error').style.display='block';
+    document.getElementById('nostr-post-error-msg').textContent=e.message||'Unknown error';
+    btn.disabled=false;
+    btn.textContent='Post to Nostr';
+    toast('Nostr publish failed',true);
+  }
+}
+
+function publishToRelays(event) {
+  const msg=JSON.stringify(['EVENT',event]);
+  return Promise.all(NOSTR_RELAYS.map(url=>new Promise(resolve=>{
+    try {
+      const ws=new WebSocket(url);
+      const timer=setTimeout(()=>{ws.close();resolve({relay:url,ok:false,reason:'timeout'});},8000);
+      ws.onopen=()=>ws.send(msg);
+      ws.onmessage=e=>{
+        try {
+          const d=JSON.parse(e.data);
+          if(Array.isArray(d)&&d[0]==='OK'){
+            clearTimeout(timer);
+            ws.close();
+            resolve({relay:url,ok:d[2]===true||d[2]===undefined,reason:d[3]||''});
+          }
+        }catch(_){}
+      };
+      ws.onerror=()=>{clearTimeout(timer);resolve({relay:url,ok:false,reason:'error'});};
+    }catch(e){resolve({relay:url,ok:false,reason:e.message});}
+  })));
+}
+
+// ── MY STAMPS ──
+async function loadStamps() {
+  if(!nostrPubkey){toast('Connect Nostr first',true);return;}
+  const list=document.getElementById('stamps-list');
+  const empty=document.getElementById('stamps-empty');
+  const loading=document.getElementById('stamps-loading');
+  const dot=document.getElementById('relay-dot');
+  const statusTxt=document.getElementById('relay-status-text');
+
+  list.innerHTML='';
+  empty.style.display='none';
+  loading.style.display='block';
+  dot.className='relay-dot active';
+  statusTxt.textContent='Querying relays…';
+  document.getElementById('refresh-stamps-btn').disabled=true;
+
+  try {
+    const events=await queryRelayForStamps(nostrPubkey);
+    loading.style.display='none';
+    document.getElementById('refresh-stamps-btn').disabled=false;
+
+    if(!events||events.length===0){
+      empty.style.display='block';
+      dot.className='relay-dot ok';
+      statusTxt.textContent='Connected — no stamps found';
+      return;
+    }
+
+    // Deduplicate by sha256 tag, newest first
+    const seen=new Set();
+    const unique=events
+      .sort((a,b)=>b.created_at-a.created_at)
+      .filter(e=>{
+        const h=getTag(e,'sha256');
+        if(!h||seen.has(h)){return false;}
+        seen.add(h);return true;
+      });
+
+    unique.forEach(e=>{
+      const hash=getTag(e,'sha256')||'—';
+      const fname=getTag(e,'filename')||'Unknown file';
+      const ts=new Date(e.created_at*1000);
+      const dateStr=ts.toLocaleDateString('en-US',{year:'numeric',month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
+      const njumpUrl=`https://njump.me/${e.id}`;
+      const hashShort=hash.length===64?hash.substring(0,12)+'…'+hash.substring(52):hash;
+
+      const item=document.createElement('div');
+      item.className='stamp-item';
+      item.innerHTML=`
+        <div>
+          <div class="stamp-item-name">${escHtml(fname)}</div>
+          <div class="stamp-item-hash">${escHtml(hashShort)}</div>
+          <div class="stamp-item-time">${escHtml(dateStr)}</div>
+        </div>
+        <div class="stamp-item-actions">
+          <a class="btn-nostr-link" href="${njumpUrl}" target="_blank" rel="noopener">View ↗</a>
+        </div>`;
+      list.appendChild(item);
+    });
+
+    dot.className='relay-dot ok';
+    statusTxt.textContent=`${unique.length} stamp${unique.length===1?'':'s'} found`;
+  } catch(e) {
+    loading.style.display='none';
+    document.getElementById('refresh-stamps-btn').disabled=false;
+    dot.className='relay-dot fail';
+    statusTxt.textContent='Relay query failed — '+e.message;
+    toast('Could not load stamps: '+e.message,true);
+  }
+}
+
+function queryRelayForStamps(pubkey) {
+  // Try relays in order, return first successful batch
+  const filter={kinds:[1],authors:[pubkey],'#t':[NOSTR_TAG],limit:100};
+  const relays=[...NOSTR_RELAYS];
+
+  return new Promise((resolve,reject)=>{
+    let tried=0;
+    function tryNext() {
+      if(tried>=relays.length){reject(new Error('All relays failed'));return;}
+      const url=relays[tried++];
+      const events=[];
+      let done=false;
+      try {
+        const ws=new WebSocket(url);
+        const subId='ck-'+Math.random().toString(36).substring(2,8);
+        const timer=setTimeout(()=>{if(!done){done=true;ws.close();if(events.length>0)resolve(events);else tryNext();}},6000);
+        ws.onopen=()=>ws.send(JSON.stringify(['REQ',subId,filter]));
+        ws.onmessage=e=>{
+          try {
+            const d=JSON.parse(e.data);
+            if(!Array.isArray(d))return;
+            if(d[0]==='EVENT'&&d[1]===subId&&d[2]) events.push(d[2]);
+            if(d[0]==='EOSE'){clearTimeout(timer);done=true;ws.close();resolve(events);}
+          }catch(_){}
+        };
+        ws.onerror=()=>{if(!done){done=true;clearTimeout(timer);tryNext();}};
+        ws.onclose=()=>{if(!done){done=true;clearTimeout(timer);if(events.length>0)resolve(events);else tryNext();}};
+      }catch(_){tryNext();}
+    }
+    tryNext();
+  });
+}
+
+function getTag(event,name){
+  const t=event.tags&&event.tags.find(t=>t[0]===name);
+  return t?t[1]:null;
+}
+
+// ── NOSTR CRYPTO UTILS ──
+// Minimal bech32 encoder for npub (no external libs)
+function pubkeyToNpub(hexPubkey) {
+  try {
+    const data=hexToBytes(hexPubkey);
+    return bech32Encode('npub',data);
+  } catch(_){
+    return hexPubkey.substring(0,16)+'…';
+  }
+}
+
+function bech32Encode(prefix,data) {
+  const CHARSET='qpzry9x8gf2tvdw0s3jn54khce6mua7l';
+  const GEN=[0x3b6a57b2,0x26508e6d,0x1ea119fa,0x3d4233dd,0x2a1462b3];
+
+  function polymod(values){
+    let chk=1;
+    for(const v of values){
+      const top=chk>>>25;
+      chk=((chk&0x1ffffff)<<5)^v;
+      for(let i=0;i<5;i++) if((top>>i)&1) chk^=GEN[i];
+    }
+    return chk;
+  }
+
+  function hrpExpand(hrp){
+    const ret=[];
+    for(let i=0;i<hrp.length;i++) ret.push(hrp.charCodeAt(i)>>5);
+    ret.push(0);
+    for(let i=0;i<hrp.length;i++) ret.push(hrp.charCodeAt(i)&31);
+    return ret;
+  }
+
+  function convertBits(data,fromBits,toBits,pad=true){
+    let acc=0,bits=0;
+    const ret=[];
+    const maxv=(1<<toBits)-1;
+    for(const val of data){
+      acc=(acc<<fromBits)|val;
+      bits+=fromBits;
+      while(bits>=toBits){bits-=toBits;ret.push((acc>>bits)&maxv);}
+    }
+    if(pad&&bits>0) ret.push((acc<<(toBits-bits))&maxv);
+    return ret;
+  }
+
+  const converted=convertBits(data,8,5);
+  const values=[...hrpExpand(prefix),...converted,...[0,0,0,0,0,0]];
+  const chk=polymod(values)^1;
+  const checksum=[];
+  for(let i=0;i<6;i++) checksum.push((chk>>(5*(5-i)))&31);
+  return prefix+'1'+[...converted,...checksum].map(v=>CHARSET[v]).join('');
+}
+
+function uint8ToBase64(u8){
+  let bin='';
+  for(let i=0;i<u8.length;i++) bin+=String.fromCharCode(u8[i]);
+  return btoa(bin);
+}
+
+function escHtml(s){
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
 
 // ── UTILS ──
 function hexToBytes(hex){const b=new Uint8Array(hex.length/2);for(let i=0;i<hex.length;i+=2)b[i/2]=parseInt(hex.substr(i,2),16);return b;}
