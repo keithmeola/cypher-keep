@@ -4,6 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Cypher Keep — Cryptographic Content Authentication</title>
+<!-- age-encryption by Filippo Valsorda — pinned to 0.2.4, BSD-3-Clause -->
+<!-- https://github.com/FiloSottile/typage -->
+<script src="https://cdn.jsdelivr.net/npm/age-encryption@0.2.4/age.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
 
@@ -1438,7 +1441,7 @@ footer {
 
   <div class="page-header">
     <h1>Encrypt and decrypt files</h1>
-    <p>Encrypt any file with a password using AES-256-GCM. Share the encrypted file freely — only someone with the password can open it. Everything runs locally.</p>
+    <p>Encrypt any file with a password using the <a href="https://age-encryption.org" target="_blank" rel="noopener" style="color:var(--purple-lt);text-decoration:none">age encryption format</a> — an open standard decryptable with any age-compatible tool, forever, independent of Cypher Keep. Everything runs locally in your browser.</p>
   </div>
 
   <div class="panel warning" style="margin-bottom:20px">
@@ -1507,9 +1510,14 @@ footer {
           <div class="field-hint" id="pw-msg"></div>
         </div>
         <div class="field-hint" style="margin-top:10px">
-          AES-256-GCM encryption · PBKDF2 key derivation (600,000 iterations) · 100% browser-native Web Crypto API
+          age encryption format · scrypt key derivation · ChaCha20-Poly1305 · 100% browser-native ·
+          <a href="https://age-encryption.org" target="_blank" rel="noopener" style="color:var(--text-tertiary)">age-encryption.org</a>
         </div>
       </div>
+    </div>
+
+    <div class="field-hint" style="margin-bottom:14px;padding:0 2px">
+      The filename will be visible to anyone who receives this file. Rename it before encrypting if that's a concern.
     </div>
 
     <button class="btn btn-orange btn-full" id="enc-btn" onclick="doEncrypt()" disabled style="margin-bottom:14px">
@@ -1524,9 +1532,10 @@ footer {
         </svg>
         File encrypted
       </div>
-      <p>Share the encrypted file freely. Send the password separately via a secure channel — never in the same message as the file.</p>
+      <p>Share the <strong>.age file</strong> freely. Send the password separately — never in the same message.<br><br>
+      The recipient can decrypt it here, or with any <a href="https://age-encryption.org" target="_blank" rel="noopener" style="color:var(--purple-lt);text-decoration:none">age-compatible tool</a> — no Cypher Keep required.</p>
       <div class="btn-row">
-        <button class="btn btn-secondary" onclick="downloadEncrypted()">Download encrypted file</button>
+        <button class="btn btn-secondary" onclick="downloadEncrypted()">Download .age file</button>
       </div>
     </div>
   </div>
@@ -1540,7 +1549,7 @@ footer {
     <div class="card">
       <div class="card-body">
         <div class="drop-zone" id="dec-drop">
-          <input type="file" id="dec-file-input" accept=".ckenc">
+          <input type="file" id="dec-file-input" accept=".age,.ckenc">
           <div class="drop-icon">
             <svg viewBox="0 0 36 36" fill="none">
               <rect x="5" y="9" width="26" height="20" rx="1.5" stroke="#7c3aed" stroke-width="1.3" fill="none"/>
@@ -1550,11 +1559,11 @@ footer {
               <path d="M15.5 20 Q15.5 18 18 18 Q20.5 18 20.5 20" stroke="#7c3aed" stroke-width="1" fill="none"/>
             </svg>
           </div>
-          <h3>Drop .ckenc file</h3>
-          <p>The encrypted file created by Cypher Keep</p>
+          <h3>Drop .age file</h3>
+          <p>Encrypted with Cypher Keep or any age-compatible tool</p>
         </div>
         <div class="file-chip" id="dec-chip">
-          <div class="file-chip-icon" style="color:var(--purple-lt);border-color:var(--purple-border);background:var(--purple-bg)">ENC</div>
+          <div class="file-chip-icon" style="color:var(--purple-lt);border-color:var(--purple-border);background:var(--purple-bg)">AGE</div>
           <div class="file-chip-meta">
             <div class="file-chip-name" id="dec-chip-name">—</div>
             <div class="file-chip-size" id="dec-chip-size">—</div>
@@ -1596,7 +1605,7 @@ footer {
 
     <div class="panel error" id="dec-fail">
       <div class="panel-title red">Decryption failed</div>
-      <p>Incorrect password, or this file was not created by Cypher Keep. Check the password and try again.</p>
+      <p id="dec-fail-msg">Incorrect password, or this file was not encrypted with age. Check the password and try again.</p>
     </div>
   </div>
 
@@ -1670,7 +1679,7 @@ footer {
         <span class="tag">SHA-256</span>
         <span class="tag">OpenTimestamps</span>
         <span class="tag">Bitcoin</span>
-        <span class="tag">AES-256-GCM</span>
+        <span class="tag">age encryption</span>
         <span class="tag">Nostr</span>
       </div>
     </div>
@@ -1982,7 +1991,7 @@ function failHTML(msg) {
   return `<div class="verify-fail"><h2>Verification failed</h2><p>${msg}</p></div>`;
 }
 
-// ── ENCRYPT ──
+// ── ENCRYPT (age format) ──
 function setEncTab(tab) {
   document.getElementById('enc-tab-e').classList.toggle('active',tab==='e');
   document.getElementById('enc-tab-d').classList.toggle('active',tab==='d');
@@ -2015,40 +2024,97 @@ function checkEncReady() {
 }
 
 async function doEncrypt() {
-  if(!encFile)return;
+  if(!encFile) return;
+  if(typeof age==='undefined'){toast('age library not loaded — check your connection and reload.',true);return;}
   const pw=document.getElementById('enc-pw1').value;
-  document.getElementById('enc-btn').disabled=true;
+  const btn=document.getElementById('enc-btn');
+  btn.disabled=true;
+  btn.textContent='Encrypting…';
   try {
     const plain=new Uint8Array(await encFile.arrayBuffer());
-    const salt=crypto.getRandomValues(new Uint8Array(16));
-    const iv=crypto.getRandomValues(new Uint8Array(12));
-    const km=await crypto.subtle.importKey('raw',new TextEncoder().encode(pw),'PBKDF2',false,['deriveKey']);
-    const key=await crypto.subtle.deriveKey({name:'PBKDF2',salt,iterations:600000,hash:'SHA-256'},km,{name:'AES-GCM',length:256},false,['encrypt']);
-    const cipher=new Uint8Array(await crypto.subtle.encrypt({name:'AES-GCM',iv},key,plain));
-    const nameB=new TextEncoder().encode(encFile.name);
-    const nameL=new Uint8Array(2);nameL[0]=(nameB.length>>8)&0xff;nameL[1]=nameB.length&0xff;
-    encryptedBlob=new Blob([concat([new TextEncoder().encode('CKEP'),salt,iv,nameL,nameB,cipher])],{type:'application/octet-stream'});
-    encryptedName=encFile.name+'.ckenc';
+    const e=new age.Encrypter();
+    e.setPassphrase(pw);
+    const ciphertext=await e.encrypt(plain);
+    encryptedBlob=new Blob([ciphertext],{type:'application/octet-stream'});
+    encryptedName=encFile.name+'.age';
     document.getElementById('enc-success').classList.add('show');
-    document.getElementById('enc-btn').disabled=false;
     toast('File encrypted ✓');
-  }catch(e){document.getElementById('enc-btn').disabled=false;toast('Encryption failed: '+e.message,true);}
+  } catch(err) {
+    toast('Encryption failed: '+err.message,true);
+  } finally {
+    btn.disabled=false;
+    btn.textContent='Encrypt file';
+  }
 }
 
-function downloadEncrypted(){if(!encryptedBlob)return;dlBlob(encryptedBlob,encryptedName);toast('Downloading '+encryptedName);}
+function downloadEncrypted() {
+  if(!encryptedBlob) return;
+  dlBlob(encryptedBlob,encryptedName);
+  toast('Downloading '+encryptedName);
+}
 
-function loadDecFile(f){decFile=f;document.getElementById('dec-chip-name').textContent=f.name;document.getElementById('dec-chip-size').textContent=fmtBytes(f.size);document.getElementById('dec-chip').classList.add('show');checkDecReady();}
-function checkDecReady(){document.getElementById('dec-btn').disabled=!(decFile&&document.getElementById('dec-pw').value.length>0);}
+function loadDecFile(f) {
+  decFile=f;
+  document.getElementById('dec-chip-name').textContent=f.name;
+  document.getElementById('dec-chip-size').textContent=fmtBytes(f.size);
+  document.getElementById('dec-chip').classList.add('show');
+  checkDecReady();
+}
+
+function checkDecReady() {
+  document.getElementById('dec-btn').disabled=!(decFile&&document.getElementById('dec-pw').value.length>0);
+}
 
 async function doDecrypt() {
-  if(!decFile)return;
+  if(!decFile) return;
+  if(typeof age==='undefined'){toast('age library not loaded — check your connection and reload.',true);return;}
   const pw=document.getElementById('dec-pw').value;
-  document.getElementById('dec-btn').disabled=true;
+  const btn=document.getElementById('dec-btn');
+  btn.disabled=true;
+  btn.textContent='Decrypting…';
   document.getElementById('dec-success').classList.remove('show');
   document.getElementById('dec-fail').classList.remove('show');
+
+  // Detect legacy .ckenc files and route to old decryptor
+  if(decFile.name.endsWith('.ckenc')) {
+    try {
+      await doDecryptLegacy(pw);
+    } finally {
+      btn.disabled=false;
+      btn.textContent='Decrypt file';
+    }
+    return;
+  }
+
   try {
     const raw=new Uint8Array(await decFile.arrayBuffer());
-    if(new TextDecoder().decode(raw.slice(0,4))!=='CKEP')throw new Error('Not a Cypher Keep file');
+    const d=new age.Decrypter();
+    d.addPassphrase(pw);
+    const plain=await d.decrypt(raw);
+    // Strip .age extension to restore original filename
+    const origName=decFile.name.endsWith('.age')
+      ?decFile.name.slice(0,-4)
+      :decFile.name+'.decrypted';
+    decryptedBlob=new Blob([plain]);
+    decryptedName=origName;
+    document.getElementById('dec-success').classList.add('show');
+    toast('Decrypted ✓');
+  } catch(err) {
+    document.getElementById('dec-fail').classList.add('show');
+    document.getElementById('dec-fail-msg').textContent=
+      'Incorrect password, or this file was not encrypted with age. Check the password and try again.';
+    toast('Wrong password or invalid file',true);
+  } finally {
+    btn.disabled=false;
+    btn.textContent='Decrypt file';
+  }
+}
+
+// Legacy .ckenc decryptor — backwards compatibility for existing files
+async function doDecryptLegacy(pw) {
+  try {
+    const raw=new Uint8Array(await decFile.arrayBuffer());
+    if(new TextDecoder().decode(raw.slice(0,4))!=='CKEP') throw new Error('Not a Cypher Keep legacy file');
     const salt=raw.slice(4,20),iv=raw.slice(20,32);
     const nameLen=(raw[32]<<8)|raw[33];
     const origName=new TextDecoder().decode(raw.slice(34,34+nameLen));
@@ -2056,14 +2122,22 @@ async function doDecrypt() {
     const km=await crypto.subtle.importKey('raw',new TextEncoder().encode(pw),'PBKDF2',false,['deriveKey']);
     const key=await crypto.subtle.deriveKey({name:'PBKDF2',salt,iterations:600000,hash:'SHA-256'},km,{name:'AES-GCM',length:256},false,['decrypt']);
     const plain=await crypto.subtle.decrypt({name:'AES-GCM',iv},key,cipher);
-    decryptedBlob=new Blob([plain]);decryptedName=origName;
+    decryptedBlob=new Blob([plain]);
+    decryptedName=origName;
     document.getElementById('dec-success').classList.add('show');
-    document.getElementById('dec-btn').disabled=false;
-    toast('Decrypted ✓');
-  }catch(e){document.getElementById('dec-fail').classList.add('show');document.getElementById('dec-btn').disabled=false;toast('Wrong password or invalid file',true);}
+    toast('Decrypted ✓ (legacy format)');
+  } catch(err) {
+    document.getElementById('dec-fail').classList.add('show');
+    document.getElementById('dec-fail-msg').textContent=
+      'Incorrect password, or this file is not a valid .ckenc file. Check the password and try again.';
+    toast('Wrong password or invalid file',true);
+  }
 }
 
-function downloadDecrypted(){if(!decryptedBlob)return;dlBlob(decryptedBlob,decryptedName);}
+function downloadDecrypted() {
+  if(!decryptedBlob) return;
+  dlBlob(decryptedBlob,decryptedName);
+}
 
 // ── NOSTR LOGIN ──
 async function nostrLogin() {
