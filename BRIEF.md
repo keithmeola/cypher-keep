@@ -48,10 +48,14 @@ Cypherpunk. Open source. User is sovereign. No liability on the developer — it
 - White-label/consulting for organizations
 - Cypher Keep Nostr relay with premium retention tier
 
+## Links
+- Live URL: https://keithmeola.github.io/cypher-keep/
+- GitHub: https://github.com/keithmeola/cypher-keep
+
 ## Files
 - `index.html` — the entire application (single file)
 - `BRIEF.md` — this document
-- `README.md` — to be written for GitHub
+- `README.md` — project README for GitHub
 
 ## Build phases (updated)
 - Phase 1: Complete ✓
