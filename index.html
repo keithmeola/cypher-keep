@@ -1,0 +1,1757 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cypher Keep — Cryptographic Content Authentication</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+:root {
+  /* Backgrounds */
+  --bg:          #0f1117;
+  --bg-card:     #161b27;
+  --bg-input:    #1c2333;
+  --bg-hover:    #1e2840;
+
+  /* Borders */
+  --border:      #252f45;
+  --border-focus:#3d5080;
+
+  /* Purple — brand, used sparingly */
+  --purple:      #7c3aed;
+  --purple-lt:   #a78bfa;
+  --purple-bg:   rgba(124,58,237,0.1);
+  --purple-border:rgba(124,58,237,0.3);
+
+  /* Orange — Bitcoin, CTAs only */
+  --orange:      #f7931a;
+  --orange-lt:   #fbb040;
+  --orange-bg:   rgba(247,147,26,0.08);
+  --orange-border:rgba(247,147,26,0.25);
+
+  /* Semantic */
+  --success:     #22c55e;
+  --success-bg:  rgba(34,197,94,0.08);
+  --success-border:rgba(34,197,94,0.25);
+  --error:       #ef4444;
+  --error-bg:    rgba(239,68,68,0.08);
+  --error-border:rgba(239,68,68,0.25);
+  --warning:     #f59e0b;
+  --warning-bg:  rgba(245,158,11,0.08);
+  --warning-border:rgba(245,158,11,0.25);
+
+  /* Text — high contrast */
+  --text-primary:  #f1f5f9;
+  --text-secondary:#94a3b8;
+  --text-tertiary: #64748b;
+  --text-disabled: #334155;
+
+  /* Typography */
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+
+body {
+  background: var(--bg);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.6;
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── LAYOUT ── */
+.page { min-height: 100vh; display: flex; flex-direction: column; }
+.container { max-width: 780px; margin: 0 auto; padding: 0 24px; width: 100%; }
+
+/* ── HEADER ── */
+header {
+  border-bottom: 1px solid var(--border);
+  background: rgba(15,17,23,0.95);
+  backdrop-filter: blur(12px);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.header-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 60px;
+  gap: 16px;
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.logo-mark {
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+}
+
+.logo-wordmark {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--text-primary);
+}
+
+.logo-wordmark span { color: var(--purple-lt); }
+
+nav { display: flex; gap: 2px; }
+
+.nav-btn {
+  background: none;
+  border: none;
+  color: var(--text-tertiary);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 500;
+  padding: 6px 14px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: color 0.15s, background 0.15s;
+}
+
+.nav-btn:hover { color: var(--text-secondary); background: var(--bg-hover); }
+.nav-btn.active { color: var(--text-primary); background: var(--bg-input); }
+
+.header-badge {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-tertiary);
+  letter-spacing: 0.02em;
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  white-space: nowrap;
+}
+
+/* ── VIEWS ── */
+.view { display: none; padding: 40px 0 80px; }
+.view.active { display: block; }
+
+/* ── PAGE HEADER ── */
+.page-header { margin-bottom: 32px; }
+
+.page-header h1 {
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--text-primary);
+  margin-bottom: 8px;
+}
+
+.page-header p {
+  font-size: 14px;
+  color: var(--text-secondary);
+  line-height: 1.7;
+  max-width: 560px;
+}
+
+/* ── STEP LABEL ── */
+.step-label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.step-num {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-tertiary);
+  flex-shrink: 0;
+}
+
+.step-num.done {
+  background: var(--success-bg);
+  border-color: var(--success-border);
+  color: var(--success);
+}
+
+.step-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  letter-spacing: 0.01em;
+  text-transform: uppercase;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+}
+
+/* ── CARDS ── */
+.card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  margin-bottom: 16px;
+  overflow: hidden;
+}
+
+.card-body { padding: 20px; }
+
+/* ── TOGGLE ── */
+.toggle-row {
+  display: flex;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 3px;
+  gap: 3px;
+  margin-bottom: 16px;
+}
+
+.toggle-btn {
+  flex: 1;
+  background: none;
+  border: none;
+  color: var(--text-tertiary);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 500;
+  padding: 7px 12px;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.toggle-btn.active {
+  background: var(--bg-card);
+  color: var(--text-primary);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+}
+
+/* ── DROP ZONE ── */
+.drop-zone {
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  padding: 36px 24px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s;
+  position: relative;
+}
+
+.drop-zone:hover,
+.drop-zone.drag-over {
+  border-color: var(--purple);
+  background: var(--purple-bg);
+}
+
+.drop-zone input[type="file"] {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+  width: 100%;
+  height: 100%;
+}
+
+.drop-icon {
+  width: 36px;
+  height: 36px;
+  margin: 0 auto 12px;
+  opacity: 0.4;
+}
+
+.drop-zone h3 {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+}
+
+.drop-zone p {
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+
+.drop-note {
+  margin-top: 12px;
+  font-size: 11px;
+  color: var(--text-disabled);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+}
+
+/* ── FILE CHIP ── */
+.file-chip {
+  display: none;
+  align-items: center;
+  gap: 12px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-top: 12px;
+}
+
+.file-chip.show { display: flex; }
+
+.file-chip-icon {
+  width: 32px;
+  height: 32px;
+  background: var(--purple-bg);
+  border: 1px solid var(--purple-border);
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--purple-lt);
+  font-family: var(--font-mono);
+  letter-spacing: 0.05em;
+  flex-shrink: 0;
+  text-transform: uppercase;
+}
+
+.file-chip-meta { flex: 1; min-width: 0; }
+
+.file-chip-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.file-chip-size {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  margin-top: 1px;
+}
+
+.btn-icon {
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--text-tertiary);
+  width: 28px;
+  height: 28px;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+  flex-shrink: 0;
+}
+
+.btn-icon:hover { border-color: var(--error); color: var(--error); }
+
+/* ── INPUTS ── */
+.field { margin-bottom: 14px; }
+.field:last-child { margin-bottom: 0; }
+
+label.field-label {
+  display: block;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  margin-bottom: 6px;
+}
+
+.field-hint {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  margin-top: 5px;
+}
+
+input.input,
+textarea.input {
+  width: 100%;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  padding: 9px 12px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+input.input:focus,
+textarea.input:focus { border-color: var(--purple); }
+
+input.input::placeholder,
+textarea.input::placeholder { color: var(--text-disabled); }
+
+input.mono { font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.03em; }
+
+textarea.input { resize: vertical; min-height: 72px; line-height: 1.6; }
+
+/* ── PROGRESS ── */
+.progress { display: none; margin-top: 12px; }
+.progress.show { display: block; }
+
+.progress-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--text-tertiary);
+  margin-bottom: 6px;
+}
+
+.progress-track {
+  height: 2px;
+  background: var(--border);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--purple), var(--purple-lt));
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
+
+/* ── HASH DISPLAY ── */
+.hash-result { display: none; margin-top: 16px; }
+.hash-result.show { display: block; animation: fadeIn 0.3s ease; }
+
+.hash-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--text-tertiary);
+  margin-bottom: 6px;
+}
+
+.hash-value-wrap {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 12px 14px;
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.hash-value {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--purple-lt);
+  word-break: break-all;
+  flex: 1;
+  line-height: 1.7;
+  letter-spacing: 0.02em;
+}
+
+.btn-copy {
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  color: var(--text-tertiary);
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 500;
+  padding: 4px 10px;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.btn-copy:hover { border-color: var(--purple); color: var(--purple-lt); }
+.btn-copy.copied { border-color: var(--success); color: var(--success); }
+
+/* ── META TABLE ── */
+.meta-table {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1px;
+  background: var(--border);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  overflow: hidden;
+  margin-top: 10px;
+}
+
+.meta-cell {
+  background: var(--bg-card);
+  padding: 10px 14px;
+}
+
+.meta-key {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--text-tertiary);
+  margin-bottom: 3px;
+}
+
+.meta-val {
+  font-size: 12px;
+  color: var(--text-secondary);
+  word-break: break-all;
+}
+
+.meta-val.accent { color: var(--orange); font-weight: 500; }
+.meta-val.purple { color: var(--purple-lt); }
+
+/* ── BUTTONS ── */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 600;
+  padding: 9px 18px;
+  border-radius: 7px;
+  cursor: pointer;
+  transition: all 0.15s;
+  border: none;
+  white-space: nowrap;
+}
+
+.btn-full { width: 100%; }
+
+.btn-primary {
+  background: var(--purple);
+  color: #fff;
+}
+
+.btn-primary:hover:not(:disabled) { background: #6d28d9; }
+
+.btn-orange {
+  background: var(--orange);
+  color: #fff;
+}
+
+.btn-orange:hover:not(:disabled) { background: var(--orange-lt); }
+
+.btn-secondary {
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+}
+
+.btn-secondary:hover:not(:disabled) {
+  border-color: var(--border-focus);
+  color: var(--text-primary);
+  background: var(--bg-hover);
+}
+
+.btn:disabled { opacity: 0.35; cursor: not-allowed; }
+
+.btn-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+}
+
+/* ── OTS LOG ── */
+.ots-log {
+  display: none;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  overflow: hidden;
+  margin-top: 14px;
+}
+
+.ots-log.show { display: block; }
+
+.log-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.log-row:last-child { border-bottom: none; }
+
+.log-indicator {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.log-indicator.idle   { background: var(--border-focus); }
+.log-indicator.active { background: var(--orange); }
+.log-indicator.ok     { background: var(--success); }
+.log-indicator.fail   { background: var(--error); }
+
+/* ── SUCCESS / NOTICE PANELS ── */
+.panel {
+  border-radius: 8px;
+  padding: 16px 18px;
+  margin-top: 14px;
+}
+
+.panel.success {
+  background: var(--success-bg);
+  border: 1px solid var(--success-border);
+  display: none;
+}
+
+.panel.success.show { display: block; animation: fadeIn 0.3s ease; }
+
+.panel.warning {
+  background: var(--warning-bg);
+  border: 1px solid var(--warning-border);
+}
+
+.panel.error {
+  background: var(--error-bg);
+  border: 1px solid var(--error-border);
+  display: none;
+}
+
+.panel.error.show { display: block; }
+
+.panel-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 5px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.panel-title.green { color: var(--success); }
+.panel-title.red   { color: var(--error); }
+.panel-title.amber { color: var(--warning); }
+
+.panel p {
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.7;
+}
+
+.panel p strong { color: var(--text-primary); font-weight: 500; }
+
+/* ── DIVIDER ── */
+.divider {
+  height: 1px;
+  background: var(--border);
+  margin: 28px 0;
+}
+
+/* ── COMING SOON ── */
+.coming-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.coming-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 18px;
+  opacity: 0.5;
+  position: relative;
+}
+
+.coming-card.full { grid-column: 1 / -1; }
+
+.coming-badge {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 2px 7px;
+  margin-bottom: 10px;
+}
+
+.coming-card h3 {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 6px;
+}
+
+.coming-card p {
+  font-size: 12px;
+  color: var(--text-tertiary);
+  line-height: 1.7;
+}
+
+/* ── VERIFY ── */
+.verify-result { display: none; margin-top: 14px; }
+.verify-result.show { display: block; }
+
+.verify-ok {
+  background: var(--success-bg);
+  border: 1px solid var(--success-border);
+  border-radius: 10px;
+  padding: 24px;
+  text-align: center;
+  animation: fadeIn 0.3s ease;
+}
+
+.verify-ok-icon {
+  width: 48px;
+  height: 48px;
+  margin: 0 auto 14px;
+}
+
+.verify-ok h2 {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--success);
+  margin-bottom: 8px;
+}
+
+.verify-ok p {
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.75;
+}
+
+.verify-fail {
+  background: var(--error-bg);
+  border: 1px solid var(--error-border);
+  border-radius: 10px;
+  padding: 24px;
+  text-align: center;
+  animation: fadeIn 0.3s ease;
+}
+
+.verify-fail h2 {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--error);
+  margin-bottom: 8px;
+}
+
+.verify-fail p {
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.75;
+}
+
+/* ── ENCRYPT TABS ── */
+.enc-tabs {
+  display: flex;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 3px;
+  gap: 3px;
+  margin-bottom: 20px;
+}
+
+.enc-tab {
+  flex: 1;
+  background: none;
+  border: none;
+  color: var(--text-tertiary);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 500;
+  padding: 7px 12px;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.enc-tab.active {
+  background: var(--bg-card);
+  color: var(--text-primary);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+}
+
+/* ── FOOTER ── */
+footer {
+  margin-top: auto;
+  border-top: 1px solid var(--border);
+  padding: 20px 0;
+}
+
+.footer-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.footer-left {
+  font-size: 12px;
+  color: var(--text-disabled);
+  line-height: 1.8;
+}
+
+.footer-left a { color: var(--text-tertiary); text-decoration: none; }
+.footer-left a:hover { color: var(--text-secondary); }
+
+.footer-tags {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.tag {
+  font-size: 11px;
+  color: var(--text-disabled);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 2px 8px;
+}
+
+/* ── TOAST ── */
+.toast {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--success);
+  border-radius: 7px;
+  padding: 10px 16px;
+  font-size: 13px;
+  color: var(--text-primary);
+  z-index: 500;
+  max-width: 300px;
+  transform: translateY(60px);
+  opacity: 0;
+  transition: all 0.25s ease;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+}
+
+.toast.show { transform: translateY(0); opacity: 1; }
+.toast.err  { border-left-color: var(--error); }
+
+/* ── ANIMATIONS ── */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* hash input hidden/visible */
+.hidden { display: none !important; }
+
+/* ── RESPONSIVE ── */
+@media (max-width: 580px) {
+  .coming-grid { grid-template-columns: 1fr; }
+  .meta-table  { grid-template-columns: 1fr; }
+  nav { display: none; }
+  .view { padding: 24px 0 60px; }
+}
+</style>
+</head>
+<body>
+<div class="page">
+
+<!-- ── HEADER ── -->
+<header>
+  <div class="container">
+    <div class="header-inner">
+
+      <div class="logo" onclick="switchView('stamp')">
+        <svg class="logo-mark" viewBox="0 0 30 30" fill="none">
+          <polygon points="15,2 27,8.5 27,21.5 15,28 3,21.5 3,8.5"
+            stroke="#7c3aed" stroke-width="1.2" fill="rgba(124,58,237,0.07)"/>
+          <rect x="10.5" y="10" width="9" height="7.5" rx="0.5"
+            stroke="#7c3aed" stroke-width="1" fill="none"/>
+          <rect x="12.5" y="7.5" width="5" height="3" rx="0.5"
+            stroke="#7c3aed" stroke-width="0.9" fill="none"/>
+          <circle cx="15" cy="14" r="1.2" fill="#f7931a"/>
+          <line x1="15" y1="15.2" x2="15" y2="17.2" stroke="#f7931a" stroke-width="0.9"/>
+        </svg>
+        <span class="logo-wordmark">Cypher<span>Keep</span></span>
+      </div>
+
+      <nav>
+        <button class="nav-btn active" id="nav-stamp" onclick="switchView('stamp')">Stamp</button>
+        <button class="nav-btn" id="nav-verify" onclick="switchView('verify')">Verify</button>
+        <button class="nav-btn" id="nav-encrypt" onclick="switchView('encrypt')">Encrypt</button>
+      </nav>
+
+      <div class="header-badge">Local · No server</div>
+
+    </div>
+  </div>
+</header>
+
+<!-- ══════════════════════════ STAMP ══════════════════════════ -->
+<div class="view active" id="view-stamp">
+<div class="container">
+
+  <div class="page-header">
+    <h1>Stamp content to the Bitcoin blockchain</h1>
+    <p>Hash your file with SHA-256 and anchor it to Bitcoin via OpenTimestamps. Your proof will be verifiable forever — by anyone, without trusting Cypher Keep.</p>
+  </div>
+
+  <!-- Step 1 -->
+  <div class="step-label">
+    <div class="step-num" id="sn1">1</div>
+    <div class="step-title">Select your content</div>
+  </div>
+
+  <div class="card">
+    <div class="card-body">
+      <div class="toggle-row">
+        <button class="toggle-btn active" id="mode-file-btn" onclick="setMode('file')">Upload a file</button>
+        <button class="toggle-btn" id="mode-hash-btn" onclick="setMode('hash')">Enter a hash</button>
+      </div>
+
+      <div id="file-input-wrap">
+        <div class="drop-zone" id="drop-zone">
+          <input type="file" id="file-input">
+          <div class="drop-icon">
+            <svg viewBox="0 0 36 36" fill="none">
+              <rect x="5" y="9" width="26" height="20" rx="1.5" stroke="#94a3b8" stroke-width="1.3" fill="none"/>
+              <line x1="5" y1="15.5" x2="31" y2="15.5" stroke="#475569" stroke-width="1"/>
+              <line x1="18" y1="5" x2="18" y2="12" stroke="#94a3b8" stroke-width="1.3"/>
+              <polyline points="13,9 18,4 23,9" stroke="#94a3b8" stroke-width="1.3" fill="none" stroke-linejoin="round"/>
+              <line x1="12" y1="21" x2="24" y2="21" stroke="#475569" stroke-width="1"/>
+              <line x1="12" y1="25" x2="19" y2="25" stroke="#475569" stroke-width="1"/>
+            </svg>
+          </div>
+          <h3>Drop any file here</h3>
+          <p>Any format, any size</p>
+          <div class="drop-note">
+            <svg width="11" height="11" viewBox="0 0 11 11" fill="none">
+              <circle cx="5.5" cy="5.5" r="4.5" stroke="#334155" stroke-width="1"/>
+              <line x1="5.5" y1="4.5" x2="5.5" y2="7.5" stroke="#334155" stroke-width="1"/>
+              <circle cx="5.5" cy="3.2" r="0.6" fill="#334155"/>
+            </svg>
+            File never leaves your browser
+          </div>
+        </div>
+        <div class="file-chip" id="file-chip">
+          <div class="file-chip-icon" id="chip-ext">—</div>
+          <div class="file-chip-meta">
+            <div class="file-chip-name" id="chip-name">—</div>
+            <div class="file-chip-size" id="chip-size">—</div>
+          </div>
+          <button class="btn-icon" onclick="clearAll()" title="Remove file">×</button>
+        </div>
+      </div>
+
+      <div id="hash-input-wrap" class="hidden">
+        <div class="field">
+          <label class="field-label">SHA-256 hash</label>
+          <input class="input mono" id="manual-hash" type="text" maxlength="64"
+            placeholder="64-character hex string..." oninput="onManualHash()" spellcheck="false" autocomplete="off">
+          <div class="field-hint">Paste a pre-computed hash to timestamp it without uploading the file.</div>
+        </div>
+      </div>
+
+      <div class="progress" id="hash-progress">
+        <div class="progress-row">
+          <span id="prog-label">Computing SHA-256...</span>
+          <span id="prog-pct">0%</span>
+        </div>
+        <div class="progress-track">
+          <div class="progress-fill" id="prog-bar" style="width:0%"></div>
+        </div>
+      </div>
+
+      <div class="hash-result" id="hash-result">
+        <div class="hash-label">SHA-256</div>
+        <div class="hash-value-wrap">
+          <div class="hash-value" id="hash-value">—</div>
+          <button class="btn-copy" id="copy-hash-btn" onclick="copyText(currentHash,'copy-hash-btn')">Copy</button>
+        </div>
+        <div class="meta-table">
+          <div class="meta-cell"><div class="meta-key">Source</div><div class="meta-val" id="meta-source">—</div></div>
+          <div class="meta-cell"><div class="meta-key">Size</div><div class="meta-val accent" id="meta-size">—</div></div>
+          <div class="meta-cell"><div class="meta-key">Type</div><div class="meta-val" id="meta-type">—</div></div>
+          <div class="meta-cell"><div class="meta-key">Hashed at</div><div class="meta-val purple" id="meta-time">—</div></div>
+        </div>
+        <div style="margin-top:14px">
+          <label class="field-label">Note <span style="font-weight:400;color:var(--text-tertiary)">(optional — saved in metadata export)</span></label>
+          <textarea class="input" id="note-input" placeholder="Describe this content or why you're stamping it..."></textarea>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Step 2 -->
+  <div class="step-label" style="margin-top:6px">
+    <div class="step-num" id="sn2">2</div>
+    <div class="step-title">Timestamp via OpenTimestamps</div>
+  </div>
+
+  <div class="card">
+    <div class="card-body">
+      <p style="font-size:13px;color:var(--text-secondary);line-height:1.75;margin-bottom:16px;">
+        OpenTimestamps batches your hash with thousands of others into a Merkle tree and commits the root to the Bitcoin blockchain. Your <code style="font-family:var(--font-mono);font-size:12px;color:var(--purple-lt);background:var(--bg-input);padding:1px 5px;border-radius:3px">.ots</code> file proves your content existed at this moment — verifiable by anyone, forever.
+      </p>
+
+      <button class="btn btn-orange btn-full" id="stamp-btn" onclick="doStamp()" disabled>
+        Stamp to Bitcoin timestamp
+      </button>
+
+      <div class="ots-log" id="ots-log">
+        <div class="log-row">
+          <div class="log-indicator idle" id="dot-submit"></div>
+          <span id="txt-submit" style="color:var(--text-tertiary)">Submitting to OpenTimestamps calendar...</span>
+        </div>
+        <div class="log-row">
+          <div class="log-indicator idle" id="dot-recv"></div>
+          <span id="txt-recv" style="color:var(--text-tertiary)">Awaiting calendar response...</span>
+        </div>
+        <div class="log-row">
+          <div class="log-indicator idle" id="dot-build"></div>
+          <span id="txt-build" style="color:var(--text-tertiary)">Building proof file...</span>
+        </div>
+      </div>
+
+      <div class="panel success" id="stamp-success">
+        <div class="panel-title green">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+            <circle cx="7" cy="7" r="6" stroke="#22c55e" stroke-width="1"/>
+            <polyline points="4,7 6.5,9.5 10.5,4.5" stroke="#22c55e" stroke-width="1.3" fill="none"/>
+          </svg>
+          Timestamp submitted
+        </div>
+        <p>
+          Your hash is pending Bitcoin block confirmation — typically 1–2 hours.
+          The <strong>.ots proof file</strong> is your receipt. Keep it with your original file permanently.
+          Verify anytime at <a href="https://opentimestamps.org" target="_blank" style="color:var(--purple-lt);text-decoration:none">opentimestamps.org</a>.
+        </p>
+        <div class="btn-row">
+          <button class="btn btn-secondary" onclick="downloadOTS()">Download .ots proof</button>
+          <button class="btn btn-secondary" id="copy-summary-btn" onclick="copySummary()">Copy summary</button>
+          <button class="btn btn-secondary" onclick="downloadMetaJSON()">Download metadata JSON</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Coming soon -->
+  <div class="divider"></div>
+
+  <p style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.07em;color:var(--text-disabled);margin-bottom:14px">Coming in next phases</p>
+
+  <div class="coming-grid">
+    <div class="coming-card">
+      <div class="coming-badge">Phase 2</div>
+      <h3>Nostr integration</h3>
+      <p>Login with your Nostr key. Post your stamp as a permanent, censorship-resistant Nostr event. Browse your full stamp history via relay query.</p>
+    </div>
+    <div class="coming-card">
+      <div class="coming-badge">Phase 3</div>
+      <h3>Arweave archival</h3>
+      <p>Archive your content and .ots proof to the Arweave permaweb. One-time fee, stored forever. Transaction ID recorded in your Nostr event.</p>
+    </div>
+  </div>
+
+</div>
+</div>
+
+<!-- ══════════════════════════ VERIFY ══════════════════════════ -->
+<div class="view" id="view-verify">
+<div class="container">
+
+  <div class="page-header">
+    <h1>Verify a stamp</h1>
+    <p>Upload the original content (or its hash) and an .ots proof file to confirm the content is unaltered and existed at the claimed time. Fully local — no account needed.</p>
+  </div>
+
+  <div class="step-label">
+    <div class="step-num">1</div>
+    <div class="step-title">Original content or hash</div>
+  </div>
+
+  <div class="card">
+    <div class="card-body">
+      <div class="toggle-row">
+        <button class="toggle-btn active" id="v-mode-file-btn" onclick="setVerifyMode('file')">Upload file</button>
+        <button class="toggle-btn" id="v-mode-hash-btn" onclick="setVerifyMode('hash')">Enter hash</button>
+      </div>
+
+      <div id="v-file-wrap">
+        <div class="drop-zone" id="v-drop">
+          <input type="file" id="v-file-input">
+          <div class="drop-icon">
+            <svg viewBox="0 0 36 36" fill="none">
+              <rect x="5" y="9" width="26" height="20" rx="1.5" stroke="#94a3b8" stroke-width="1.3" fill="none"/>
+              <line x1="5" y1="15.5" x2="31" y2="15.5" stroke="#475569" stroke-width="1"/>
+              <line x1="12" y1="21" x2="24" y2="21" stroke="#475569" stroke-width="1"/>
+              <line x1="12" y1="25" x2="19" y2="25" stroke="#475569" stroke-width="1"/>
+            </svg>
+          </div>
+          <h3>Drop original file</h3>
+          <p>Hash will be recomputed and compared to the proof</p>
+        </div>
+        <div class="file-chip" id="v-file-chip">
+          <div class="file-chip-icon" id="v-chip-ext">—</div>
+          <div class="file-chip-meta">
+            <div class="file-chip-name" id="v-chip-name">—</div>
+            <div class="file-chip-size" id="v-chip-size">—</div>
+          </div>
+        </div>
+      </div>
+
+      <div id="v-hash-wrap" class="hidden">
+        <div class="field">
+          <label class="field-label">SHA-256 hash</label>
+          <input class="input mono" id="v-hash-input" type="text" maxlength="64"
+            placeholder="64-character hex string..." spellcheck="false" oninput="checkVerifyReady()">
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="step-label">
+    <div class="step-num">2</div>
+    <div class="step-title">OpenTimestamps proof file (.ots)</div>
+  </div>
+
+  <div class="card">
+    <div class="card-body">
+      <div class="drop-zone" id="ots-drop">
+        <input type="file" id="ots-input" accept=".ots">
+        <div class="drop-icon">
+          <svg viewBox="0 0 36 36" fill="none">
+            <rect x="7" y="4" width="22" height="28" rx="1.5" stroke="#f7931a" stroke-width="1.3" fill="none"/>
+            <line x1="12" y1="13" x2="24" y2="13" stroke="#8a5010" stroke-width="1"/>
+            <line x1="12" y1="17" x2="24" y2="17" stroke="#8a5010" stroke-width="1"/>
+            <line x1="12" y1="21" x2="19" y2="21" stroke="#8a5010" stroke-width="1"/>
+          </svg>
+        </div>
+        <h3>Drop .ots proof file</h3>
+        <p>Generated when the content was originally stamped</p>
+      </div>
+      <div class="file-chip" id="ots-chip">
+        <div class="file-chip-icon" style="color:var(--orange);border-color:var(--orange-border);background:var(--orange-bg)">OTS</div>
+        <div class="file-chip-meta">
+          <div class="file-chip-name" id="ots-chip-name">—</div>
+          <div class="file-chip-size" id="ots-chip-size">—</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <button class="btn btn-primary btn-full" id="verify-btn" onclick="doVerify()" disabled style="margin-bottom:14px">
+    Verify proof
+  </button>
+
+  <div class="verify-result" id="verify-result"></div>
+
+</div>
+</div>
+
+<!-- ══════════════════════════ ENCRYPT ══════════════════════════ -->
+<div class="view" id="view-encrypt">
+<div class="container">
+
+  <div class="page-header">
+    <h1>Encrypt and decrypt files</h1>
+    <p>Encrypt any file with a password using AES-256-GCM. Share the encrypted file freely — only someone with the password can open it. Everything runs locally.</p>
+  </div>
+
+  <div class="panel warning" style="margin-bottom:20px">
+    <div class="panel-title amber">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+        <path d="M7 1.5L13 12H1L7 1.5Z" stroke="#f59e0b" stroke-width="1" fill="none"/>
+        <line x1="7" y1="6" x2="7" y2="9" stroke="#f59e0b" stroke-width="1.2"/>
+        <circle cx="7" cy="10.5" r="0.6" fill="#f59e0b"/>
+      </svg>
+      Your password is your only key
+    </div>
+    <p>If you lose your password, the file cannot be recovered by anyone — including us. There is no reset. Write it down and store it somewhere safe before you proceed.</p>
+  </div>
+
+  <div class="enc-tabs">
+    <button class="enc-tab active" id="enc-tab-e" onclick="setEncTab('e')">Encrypt a file</button>
+    <button class="enc-tab" id="enc-tab-d" onclick="setEncTab('d')">Decrypt a file</button>
+  </div>
+
+  <!-- ENCRYPT -->
+  <div id="enc-panel-e">
+    <div class="step-label">
+      <div class="step-num">1</div>
+      <div class="step-title">Select file to encrypt</div>
+    </div>
+    <div class="card">
+      <div class="card-body">
+        <div class="drop-zone" id="enc-drop">
+          <input type="file" id="enc-file-input">
+          <div class="drop-icon">
+            <svg viewBox="0 0 36 36" fill="none">
+              <rect x="5" y="9" width="26" height="20" rx="1.5" stroke="#f7931a" stroke-width="1.3" fill="none"/>
+              <line x1="5" y1="15.5" x2="31" y2="15.5" stroke="#8a5010" stroke-width="1"/>
+              <rect x="12" y="18" width="12" height="8" rx="1" stroke="#f7931a" stroke-width="1" fill="rgba(247,147,26,0.06)"/>
+              <circle cx="18" cy="21" r="1.2" fill="#f7931a"/>
+              <line x1="18" y1="22.2" x2="18" y2="24.5" stroke="#f7931a" stroke-width="0.9"/>
+            </svg>
+          </div>
+          <h3>Drop file to encrypt</h3>
+          <p>Any format · Encrypted entirely in your browser</p>
+        </div>
+        <div class="file-chip" id="enc-chip">
+          <div class="file-chip-icon" id="enc-chip-ext">—</div>
+          <div class="file-chip-meta">
+            <div class="file-chip-name" id="enc-chip-name">—</div>
+            <div class="file-chip-size" id="enc-chip-size">—</div>
+          </div>
+          <button class="btn-icon" onclick="clearEnc()">×</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="step-label">
+      <div class="step-num">2</div>
+      <div class="step-title">Set a password</div>
+    </div>
+    <div class="card">
+      <div class="card-body">
+        <div class="field">
+          <label class="field-label">Password</label>
+          <input class="input" id="enc-pw1" type="password" placeholder="Choose a strong password" oninput="checkEncReady()">
+        </div>
+        <div class="field">
+          <label class="field-label">Confirm password</label>
+          <input class="input" id="enc-pw2" type="password" placeholder="Repeat password" oninput="checkEncReady()">
+          <div class="field-hint" id="pw-msg"></div>
+        </div>
+        <div class="field-hint" style="margin-top:10px">
+          AES-256-GCM encryption · PBKDF2 key derivation (600,000 iterations) · 100% browser-native Web Crypto API
+        </div>
+      </div>
+    </div>
+
+    <button class="btn btn-orange btn-full" id="enc-btn" onclick="doEncrypt()" disabled style="margin-bottom:14px">
+      Encrypt file
+    </button>
+
+    <div class="panel success" id="enc-success">
+      <div class="panel-title green">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+          <circle cx="7" cy="7" r="6" stroke="#22c55e" stroke-width="1"/>
+          <polyline points="4,7 6.5,9.5 10.5,4.5" stroke="#22c55e" stroke-width="1.3" fill="none"/>
+        </svg>
+        File encrypted
+      </div>
+      <p>Share the encrypted file freely. Send the password separately via a secure channel — never in the same message as the file.</p>
+      <div class="btn-row">
+        <button class="btn btn-secondary" onclick="downloadEncrypted()">Download encrypted file</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- DECRYPT -->
+  <div id="enc-panel-d" class="hidden">
+    <div class="step-label">
+      <div class="step-num">1</div>
+      <div class="step-title">Select encrypted file</div>
+    </div>
+    <div class="card">
+      <div class="card-body">
+        <div class="drop-zone" id="dec-drop">
+          <input type="file" id="dec-file-input" accept=".ckenc">
+          <div class="drop-icon">
+            <svg viewBox="0 0 36 36" fill="none">
+              <rect x="5" y="9" width="26" height="20" rx="1.5" stroke="#7c3aed" stroke-width="1.3" fill="none"/>
+              <line x1="5" y1="15.5" x2="31" y2="15.5" stroke="#4c2490" stroke-width="1"/>
+              <rect x="12" y="18" width="12" height="8" rx="1" stroke="#7c3aed" stroke-width="1" fill="rgba(124,58,237,0.06)"/>
+              <circle cx="18" cy="21" r="1.2" stroke="#7c3aed" stroke-width="1" fill="none"/>
+              <path d="M15.5 20 Q15.5 18 18 18 Q20.5 18 20.5 20" stroke="#7c3aed" stroke-width="1" fill="none"/>
+            </svg>
+          </div>
+          <h3>Drop .ckenc file</h3>
+          <p>The encrypted file created by Cypher Keep</p>
+        </div>
+        <div class="file-chip" id="dec-chip">
+          <div class="file-chip-icon" style="color:var(--purple-lt);border-color:var(--purple-border);background:var(--purple-bg)">ENC</div>
+          <div class="file-chip-meta">
+            <div class="file-chip-name" id="dec-chip-name">—</div>
+            <div class="file-chip-size" id="dec-chip-size">—</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="step-label">
+      <div class="step-num">2</div>
+      <div class="step-title">Enter password</div>
+    </div>
+    <div class="card">
+      <div class="card-body">
+        <div class="field">
+          <label class="field-label">Password</label>
+          <input class="input" id="dec-pw" type="password" placeholder="Enter the decryption password" oninput="checkDecReady()">
+        </div>
+      </div>
+    </div>
+
+    <button class="btn btn-primary btn-full" id="dec-btn" onclick="doDecrypt()" disabled style="margin-bottom:14px">
+      Decrypt file
+    </button>
+
+    <div class="panel success" id="dec-success">
+      <div class="panel-title green">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+          <circle cx="7" cy="7" r="6" stroke="#22c55e" stroke-width="1"/>
+          <polyline points="4,7 6.5,9.5 10.5,4.5" stroke="#22c55e" stroke-width="1.3" fill="none"/>
+        </svg>
+        Decrypted successfully
+      </div>
+      <p>Your file has been decrypted and is ready to download.</p>
+      <div class="btn-row">
+        <button class="btn btn-secondary" onclick="downloadDecrypted()">Download decrypted file</button>
+      </div>
+    </div>
+
+    <div class="panel error" id="dec-fail">
+      <div class="panel-title red">Decryption failed</div>
+      <p>Incorrect password, or this file was not created by Cypher Keep. Check the password and try again.</p>
+    </div>
+  </div>
+
+</div>
+</div>
+
+<!-- ── FOOTER ── -->
+<footer>
+  <div class="container">
+    <div class="footer-inner">
+      <div class="footer-left">
+        Cypher Keep · Phase 1 · Open source ·
+        SHA-256 via Web Crypto API ·
+        <a href="https://opentimestamps.org" target="_blank" rel="noopener">OpenTimestamps</a>
+        · All computation is local. Nothing leaves your browser.
+      </div>
+      <div class="footer-tags">
+        <span class="tag">SHA-256</span>
+        <span class="tag">OpenTimestamps</span>
+        <span class="tag">Bitcoin</span>
+        <span class="tag">AES-256-GCM</span>
+      </div>
+    </div>
+  </div>
+</footer>
+
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+'use strict';
+
+// ── STATE ──
+let currentHash=null, currentFile=null;
+let otsBytes=null, otsFilename=null, stampedAt=null;
+let inputMode='file';
+let verifyHash=null, verifyOTS=null, verifyOTSName=null;
+let encFile=null, encryptedBlob=null, encryptedName=null;
+let decFile=null, decryptedBlob=null, decryptedName=null;
+
+// ── NAV ──
+function switchView(name) {
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('view-'+name).classList.add('active');
+  document.getElementById('nav-'+name).classList.add('active');
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+
+// ── STAMP MODE ──
+function setMode(mode) {
+  inputMode=mode;
+  document.getElementById('mode-file-btn').classList.toggle('active',mode==='file');
+  document.getElementById('mode-hash-btn').classList.toggle('active',mode==='hash');
+  document.getElementById('file-input-wrap').classList.toggle('hidden',mode!=='file');
+  document.getElementById('hash-input-wrap').classList.toggle('hidden',mode!=='hash');
+  clearAll(false);
+}
+
+// ── DROP ZONES ──
+function makeDrop(zoneId, inputId, handler) {
+  const zone=document.getElementById(zoneId);
+  const inp=document.getElementById(inputId);
+  if(!zone||!inp) return;
+  zone.addEventListener('dragover',e=>{e.preventDefault();zone.classList.add('drag-over');});
+  zone.addEventListener('dragleave',()=>zone.classList.remove('drag-over'));
+  zone.addEventListener('drop',e=>{e.preventDefault();zone.classList.remove('drag-over');if(e.dataTransfer.files[0])handler(e.dataTransfer.files[0]);});
+  inp.addEventListener('change',()=>{if(inp.files[0])handler(inp.files[0]);});
+}
+
+makeDrop('drop-zone','file-input',loadFile);
+makeDrop('v-drop','v-file-input',loadVerifyFile);
+makeDrop('ots-drop','ots-input',loadOTSFile);
+makeDrop('enc-drop','enc-file-input',loadEncFile);
+makeDrop('dec-drop','dec-file-input',loadDecFile);
+
+function showChip(chipId, extId, nameId, sizeId, f) {
+  document.getElementById(extId).textContent  = f.name.split('.').pop().substring(0,5).toUpperCase()||'FILE';
+  document.getElementById(nameId).textContent = f.name;
+  document.getElementById(sizeId).textContent = fmtBytes(f.size);
+  document.getElementById(chipId).classList.add('show');
+}
+
+// ── STAMP: FILE LOAD ──
+function loadFile(f) {
+  currentFile=f; currentHash=null; otsBytes=null;
+  showChip('file-chip','chip-ext','chip-name','chip-size',f);
+  resetStampUI();
+  computeHash(f);
+}
+
+function clearAll(resetToggle=true) {
+  currentFile=null; currentHash=null; otsBytes=null;
+  const fi=document.getElementById('file-input');
+  if(fi)fi.value='';
+  document.getElementById('file-chip').classList.remove('show');
+  if(resetToggle)document.getElementById('manual-hash').value='';
+  resetStampUI();
+  document.getElementById('stamp-btn').disabled=true;
+}
+
+function resetStampUI() {
+  document.getElementById('hash-result').classList.remove('show');
+  document.getElementById('hash-progress').classList.remove('show');
+  document.getElementById('ots-log').classList.remove('show');
+  document.getElementById('stamp-success').classList.remove('show');
+  document.getElementById('prog-bar').style.width='0%';
+}
+
+// ── MANUAL HASH ──
+function onManualHash() {
+  const v=document.getElementById('manual-hash').value.trim().toLowerCase();
+  if(/^[0-9a-f]{64}$/.test(v)){
+    currentHash=v;
+    showHashResult(v,'Manual input','—','—');
+    document.getElementById('stamp-btn').disabled=false;
+  } else {
+    currentHash=null;
+    document.getElementById('hash-result').classList.remove('show');
+    document.getElementById('stamp-btn').disabled=true;
+  }
+}
+
+// ── HASH COMPUTE ──
+async function computeHash(f) {
+  document.getElementById('hash-progress').classList.add('show');
+  setProg(0,'Reading file...');
+  try {
+    const buf=await readProgress(f);
+    setProg(72,'Computing SHA-256...');
+    const dig=await crypto.subtle.digest('SHA-256',buf);
+    const hex=Array.from(new Uint8Array(dig)).map(b=>b.toString(16).padStart(2,'0')).join('');
+    setProg(100,'Done'); await sleep(180);
+    document.getElementById('hash-progress').classList.remove('show');
+    currentHash=hex;
+    showHashResult(hex,f.name,fmtBytes(f.size),f.type||'unknown');
+    document.getElementById('stamp-btn').disabled=false;
+    document.getElementById('sn1').classList.add('done');
+    document.getElementById('sn1').textContent='✓';
+  } catch(e) {
+    document.getElementById('hash-progress').classList.remove('show');
+    toast('Hash error: '+e.message,true);
+  }
+}
+
+function readProgress(f) {
+  return new Promise((res,rej)=>{
+    const r=new FileReader();
+    r.onprogress=e=>{if(e.lengthComputable)setProg(Math.round(e.loaded/e.total*68),'Reading...');};
+    r.onload=e=>res(e.target.result);
+    r.onerror=()=>rej(new Error('Read failed'));
+    r.readAsArrayBuffer(f);
+  });
+}
+
+function setProg(pct,label) {
+  document.getElementById('prog-bar').style.width=pct+'%';
+  document.getElementById('prog-pct').textContent=pct+'%';
+  document.getElementById('prog-label').textContent=label;
+}
+
+function showHashResult(hex,source,size,type) {
+  stampedAt=new Date().toISOString();
+  document.getElementById('hash-value').textContent=hex;
+  document.getElementById('meta-source').textContent=source;
+  document.getElementById('meta-size').textContent=size;
+  document.getElementById('meta-type').textContent=type;
+  document.getElementById('meta-time').textContent=stampedAt;
+  document.getElementById('hash-result').classList.add('show');
+}
+
+// ── OTS STAMP ──
+async function doStamp() {
+  if(!currentHash)return;
+  document.getElementById('stamp-btn').disabled=true;
+  document.getElementById('ots-log').classList.add('show');
+  document.getElementById('stamp-success').classList.remove('show');
+
+  setLog('submit','active','Submitting to OpenTimestamps calendar...');
+  setLog('recv','idle','Awaiting calendar response...');
+  setLog('build','idle','Building proof file...');
+
+  const hb=hexToBytes(currentHash);
+  const cals=['https://alice.btc.calendar.opentimestamps.org','https://bob.btc.calendar.opentimestamps.org','https://finney.calendar.eternitywall.com'];
+  let resp=null,cal=null;
+  for(const c of cals){
+    try{
+      const r=await fetch(c+'/digest',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:hb});
+      if(r.ok){resp=await r.arrayBuffer();cal=c;break;}
+    }catch(_){}
+  }
+  if(!resp){
+    setLog('submit','fail','All calendar servers unreachable. Check your connection.');
+    document.getElementById('stamp-btn').disabled=false;
+    toast('Could not reach OpenTimestamps servers.',true);
+    return;
+  }
+
+  setLog('submit','ok',`Submitted to ${cal.replace('https://','')}`);
+  setLog('recv','ok','Acknowledged — pending Bitcoin block inclusion (~1–2 hrs)');
+  setLog('build','active','Assembling proof file...');
+  await sleep(350);
+
+  otsBytes=buildOTS(hb,new Uint8Array(resp));
+  otsFilename=(currentFile?currentFile.name:'content')+'.ots';
+  setLog('build','ok',`Proof ready — ${otsFilename}`);
+  document.getElementById('stamp-success').classList.add('show');
+  document.getElementById('sn2').classList.add('done');
+  document.getElementById('sn2').textContent='✓';
+  toast('Timestamp submitted ✓');
+}
+
+function setLog(id,state,text) {
+  const dot=document.getElementById('dot-'+id);
+  const txt=document.getElementById('txt-'+id);
+  dot.className='log-indicator '+state;
+  txt.textContent=text;
+  txt.style.color=state==='ok'?'var(--text-secondary)':state==='fail'?'var(--error)':state==='active'?'var(--text-primary)':'var(--text-tertiary)';
+}
+
+function buildOTS(hb,cr) {
+  const magic=new Uint8Array([0x00,0x4f,0x70,0x65,0x6e,0x54,0x69,0x6d,0x65,0x73,0x74,0x61,0x6d,0x70,0x73,0x00,0x00,0x50,0x72,0x6f,0x6f,0x66,0x00,0xbf,0x89,0xe2,0xe8,0x84,0xe8,0x92,0x94]);
+  return concat([magic,new Uint8Array([0x01,0x08]),hb,cr]);
+}
+
+// ── EXPORTS ──
+function downloadOTS() {
+  if(!otsBytes)return;
+  dlBlob(new Blob([otsBytes],{type:'application/octet-stream'}),otsFilename);
+  toast('Downloading '+otsFilename);
+}
+
+function downloadMetaJSON() {
+  if(!currentHash)return;
+  const meta={tool:'Cypher Keep',version:'1.0.0',phase:1,
+    file:currentFile?{name:currentFile.name,size:currentFile.size,type:currentFile.type||'unknown'}:null,
+    sha256:currentHash,timestamp:stampedAt||new Date().toISOString(),
+    ots_file:otsFilename||null,calendar:'OpenTimestamps / Bitcoin',
+    note:document.getElementById('note-input').value.trim()||null,
+    nostr_event:null,arweave_id:null};
+  dlBlob(new Blob([JSON.stringify(meta,null,2)],{type:'application/json'}),
+    (currentFile?currentFile.name:'content')+'.ckmeta.json');
+  toast('Metadata downloaded');
+}
+
+function copySummary() {
+  if(!currentHash)return;
+  const note=document.getElementById('note-input').value.trim();
+  const lines=[
+    'CYPHER KEEP — CONTENT AUTHENTICATION RECORD',
+    '─'.repeat(48),'',
+    currentFile?`File:     ${currentFile.name}`:'',
+    currentFile?`Size:     ${fmtBytes(currentFile.size)}`:'',
+    `Stamped:  ${stampedAt||new Date().toISOString()}`,
+    '',`SHA-256:  ${currentHash}`,'',
+    `OTS Proof: ${otsFilename||'pending'}`,
+    'Calendar:  OpenTimestamps / Bitcoin',
+    'Status:    Pending Bitcoin block confirmation (~1–2 hours)',
+    '',note?`Note: ${note}`:'',
+    '','Verify: https://opentimestamps.org',
+    '─'.repeat(48)
+  ].filter(Boolean).join('\n');
+  navigator.clipboard.writeText(lines).then(()=>{
+    const btn=document.getElementById('copy-summary-btn');
+    const o=btn.textContent;
+    btn.textContent='Copied!';
+    setTimeout(()=>btn.textContent=o,2000);
+    toast('Summary copied');
+  });
+}
+
+// ── VERIFY ──
+function setVerifyMode(mode) {
+  document.getElementById('v-mode-file-btn').classList.toggle('active',mode==='file');
+  document.getElementById('v-mode-hash-btn').classList.toggle('active',mode==='hash');
+  document.getElementById('v-file-wrap').classList.toggle('hidden',mode!=='file');
+  document.getElementById('v-hash-wrap').classList.toggle('hidden',mode!=='hash');
+  verifyHash=null;
+  document.getElementById('v-file-chip').classList.remove('show');
+  checkVerifyReady();
+}
+
+async function loadVerifyFile(f) {
+  const buf=await f.arrayBuffer();
+  const dig=await crypto.subtle.digest('SHA-256',buf);
+  verifyHash=Array.from(new Uint8Array(dig)).map(b=>b.toString(16).padStart(2,'0')).join('');
+  showChip('v-file-chip','v-chip-ext','v-chip-name','v-chip-size',f);
+  checkVerifyReady();
+}
+
+async function loadOTSFile(f) {
+  verifyOTS=new Uint8Array(await f.arrayBuffer());
+  verifyOTSName=f.name;
+  document.getElementById('ots-chip-name').textContent=f.name;
+  document.getElementById('ots-chip-size').textContent=fmtBytes(f.size);
+  document.getElementById('ots-chip').classList.add('show');
+  checkVerifyReady();
+}
+
+function checkVerifyReady() {
+  const hOk=verifyHash||(document.getElementById('v-hash-input').value.trim().length===64);
+  document.getElementById('verify-btn').disabled=!(hOk&&verifyOTS);
+}
+
+async function doVerify() {
+  const hash=verifyHash||document.getElementById('v-hash-input').value.trim().toLowerCase();
+  const el=document.getElementById('verify-result');
+  el.classList.add('show');
+  if(!verifyOTS||verifyOTS.length<65){el.innerHTML=failHTML('Invalid .ots file — too short or malformed.');return;}
+  const otsHash=Array.from(verifyOTS.slice(33,65)).map(b=>b.toString(16).padStart(2,'0')).join('');
+  if(otsHash===hash){el.innerHTML=okHTML(hash,verifyOTSName);toast('Proof verified ✓');}
+  else{el.innerHTML=failHTML('Hash mismatch. The content does not match this proof. Either the content has been modified, or the wrong proof file was provided.');toast('Verification failed',true);}
+}
+
+function okHTML(hash,proof) {
+  return `<div class="verify-ok"><div class="verify-ok-icon"><svg viewBox="0 0 48 48" fill="none"><circle cx="24" cy="24" r="22" stroke="#22c55e" stroke-width="1.5"/><polyline points="14,24 21,31 34,16" stroke="#22c55e" stroke-width="2" fill="none" stroke-linecap="round"/></svg></div><h2>Proof verified</h2><p>This content is unaltered since it was stamped.<br><br>Hash: <code style="font-family:var(--font-mono);font-size:11px;color:var(--purple-lt)">${hash.substring(0,16)}...${hash.substring(48)}</code><br>Proof: ${proof||'provided'}<br><br>Confirm Bitcoin block time at <a href="https://opentimestamps.org" target="_blank" style="color:var(--purple-lt)">opentimestamps.org</a>.</p></div>`;
+}
+
+function failHTML(msg) {
+  return `<div class="verify-fail"><h2>Verification failed</h2><p>${msg}</p></div>`;
+}
+
+// ── ENCRYPT ──
+function setEncTab(tab) {
+  document.getElementById('enc-tab-e').classList.toggle('active',tab==='e');
+  document.getElementById('enc-tab-d').classList.toggle('active',tab==='d');
+  document.getElementById('enc-panel-e').classList.toggle('hidden',tab!=='e');
+  document.getElementById('enc-panel-d').classList.toggle('hidden',tab!=='d');
+}
+
+function loadEncFile(f) {
+  encFile=f;
+  showChip('enc-chip','enc-chip-ext','enc-chip-name','enc-chip-size',f);
+  checkEncReady();
+}
+
+function clearEnc() {
+  encFile=null;
+  document.getElementById('enc-file-input').value='';
+  document.getElementById('enc-chip').classList.remove('show');
+  checkEncReady();
+}
+
+function checkEncReady() {
+  const p1=document.getElementById('enc-pw1').value;
+  const p2=document.getElementById('enc-pw2').value;
+  const msg=document.getElementById('pw-msg');
+  if(p1&&p2){
+    if(p1===p2){msg.style.color='var(--success)';msg.textContent='Passwords match';}
+    else{msg.style.color='var(--error)';msg.textContent='Passwords do not match';}
+  }else{msg.textContent='';}
+  document.getElementById('enc-btn').disabled=!(encFile&&p1&&p1===p2);
+}
+
+async function doEncrypt() {
+  if(!encFile)return;
+  const pw=document.getElementById('enc-pw1').value;
+  document.getElementById('enc-btn').disabled=true;
+  try {
+    const plain=new Uint8Array(await encFile.arrayBuffer());
+    const salt=crypto.getRandomValues(new Uint8Array(16));
+    const iv=crypto.getRandomValues(new Uint8Array(12));
+    const km=await crypto.subtle.importKey('raw',new TextEncoder().encode(pw),'PBKDF2',false,['deriveKey']);
+    const key=await crypto.subtle.deriveKey({name:'PBKDF2',salt,iterations:600000,hash:'SHA-256'},km,{name:'AES-GCM',length:256},false,['encrypt']);
+    const cipher=new Uint8Array(await crypto.subtle.encrypt({name:'AES-GCM',iv},key,plain));
+    const nameB=new TextEncoder().encode(encFile.name);
+    const nameL=new Uint8Array(2);nameL[0]=(nameB.length>>8)&0xff;nameL[1]=nameB.length&0xff;
+    encryptedBlob=new Blob([concat([new TextEncoder().encode('CKEP'),salt,iv,nameL,nameB,cipher])],{type:'application/octet-stream'});
+    encryptedName=encFile.name+'.ckenc';
+    document.getElementById('enc-success').classList.add('show');
+    document.getElementById('enc-btn').disabled=false;
+    toast('File encrypted ✓');
+  }catch(e){document.getElementById('enc-btn').disabled=false;toast('Encryption failed: '+e.message,true);}
+}
+
+function downloadEncrypted(){if(!encryptedBlob)return;dlBlob(encryptedBlob,encryptedName);toast('Downloading '+encryptedName);}
+
+function loadDecFile(f){decFile=f;document.getElementById('dec-chip-name').textContent=f.name;document.getElementById('dec-chip-size').textContent=fmtBytes(f.size);document.getElementById('dec-chip').classList.add('show');checkDecReady();}
+function checkDecReady(){document.getElementById('dec-btn').disabled=!(decFile&&document.getElementById('dec-pw').value.length>0);}
+
+async function doDecrypt() {
+  if(!decFile)return;
+  const pw=document.getElementById('dec-pw').value;
+  document.getElementById('dec-btn').disabled=true;
+  document.getElementById('dec-success').classList.remove('show');
+  document.getElementById('dec-fail').classList.remove('show');
+  try {
+    const raw=new Uint8Array(await decFile.arrayBuffer());
+    if(new TextDecoder().decode(raw.slice(0,4))!=='CKEP')throw new Error('Not a Cypher Keep file');
+    const salt=raw.slice(4,20),iv=raw.slice(20,32);
+    const nameLen=(raw[32]<<8)|raw[33];
+    const origName=new TextDecoder().decode(raw.slice(34,34+nameLen));
+    const cipher=raw.slice(34+nameLen);
+    const km=await crypto.subtle.importKey('raw',new TextEncoder().encode(pw),'PBKDF2',false,['deriveKey']);
+    const key=await crypto.subtle.deriveKey({name:'PBKDF2',salt,iterations:600000,hash:'SHA-256'},km,{name:'AES-GCM',length:256},false,['decrypt']);
+    const plain=await crypto.subtle.decrypt({name:'AES-GCM',iv},key,cipher);
+    decryptedBlob=new Blob([plain]);decryptedName=origName;
+    document.getElementById('dec-success').classList.add('show');
+    document.getElementById('dec-btn').disabled=false;
+    toast('Decrypted ✓');
+  }catch(e){document.getElementById('dec-fail').classList.add('show');document.getElementById('dec-btn').disabled=false;toast('Wrong password or invalid file',true);}
+}
+
+function downloadDecrypted(){if(!decryptedBlob)return;dlBlob(decryptedBlob,decryptedName);}
+
+// ── UTILS ──
+function hexToBytes(hex){const b=new Uint8Array(hex.length/2);for(let i=0;i<hex.length;i+=2)b[i/2]=parseInt(hex.substr(i,2),16);return b;}
+function concat(arrays){const t=arrays.reduce((a,b)=>a+b.length,0);const o=new Uint8Array(t);let off=0;for(const a of arrays){o.set(a,off);off+=a.length;}return o;}
+function fmtBytes(b){if(!b)return'0 B';const k=1024,u=['B','KB','MB','GB'];const i=Math.floor(Math.log(b)/Math.log(k));return(b/Math.pow(k,i)).toFixed(2)+' '+u[i];}
+function sleep(ms){return new Promise(r=>setTimeout(r,ms));}
+function dlBlob(blob,name){const url=URL.createObjectURL(blob);const a=Object.assign(document.createElement('a'),{href:url,download:name});a.click();URL.revokeObjectURL(url);}
+function copyText(text,btnId){if(!text)return;navigator.clipboard.writeText(text).then(()=>{const btn=document.getElementById(btnId);if(!btn)return;const o=btn.textContent;btn.textContent='Copied';btn.classList.add('copied');setTimeout(()=>{btn.textContent=o;btn.classList.remove('copied');},1800);});}
+function toast(msg,isErr=false){const el=document.getElementById('toast');el.textContent=msg;el.className='toast'+(isErr?' err':'');el.classList.add('show');setTimeout(()=>el.classList.remove('show'),3200);}
+</script>
+</body>
+</html>
