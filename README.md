@@ -4,7 +4,7 @@
 
 Hash any file with SHA-256, anchor it to the Bitcoin blockchain via OpenTimestamps, encrypt files with AES-256-GCM, and verify proofs — all locally, with no server, no account, and nothing leaving your device.
 
-🔗 **[cypherkeep — Live Tool](https://keithmeola.github.io/cypher-keep/)**
+🔗 **[Live Tool — keithmeola.github.io/cypher-keep](https://keithmeola.github.io/cypher-keep/)**
 
 ---
 
@@ -76,9 +76,11 @@ Download `index.html` and open it in any modern browser. That's it.
 
 ## About
 
-Built by [Keith Meola](https://njump.me/npub1ygzsm5m9ndtgch9n22cwsx2clwvxhk2pqvdfp36t5lmdyjqvz84qkca2m5) — Bitcoin educator, privacy advocate, and open-source supporter.
+Built by [Keith Meola](https://keithmeola.com) — Bitcoin educator, privacy advocate, and open-source supporter.
 
-Nostr: `npub1ygzsm5m9ndtgch9n22cwsx2clwvxhk2pqvdfp36t5lmdyjqvz84qkca2m5`
+Website: [keithmeola.com](https://keithmeola.com)  
+Nostr: `npub1ygzsm5m9ndtgch9n22cwsx2clwvxhk2pqvdfp36t5lmdyjqvz84qkca2m5`  
+PGP: `DB31 D0E3 FDAC A0A8 BF61  950E 53AE 9EF6 09AF EAD7` — [fetch key](https://keys.openpgp.org/search?q=53AE9EF609AFEAD7)
 
 ---
 
