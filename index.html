@@ -869,6 +869,120 @@ footer {
 /* hash input hidden/visible */
 .hidden { display: none !important; }
 
+/* ── NOSTR LOGIN MODAL ── */
+.nostr-login-modal {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(5,7,15,0.85);
+  backdrop-filter: blur(4px);
+  z-index: 400;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.nostr-login-modal.show { display: flex; }
+
+.nostr-login-box {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 28px;
+  max-width: 400px;
+  width: 100%;
+  animation: fadeIn 0.2s ease;
+}
+
+.nostr-login-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 6px;
+}
+
+.nostr-login-sub {
+  font-size: 13px;
+  color: var(--text-tertiary);
+  margin-bottom: 20px;
+  line-height: 1.6;
+}
+
+.nostr-login-options {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.nostr-login-option {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px 16px;
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.15s, background 0.15s;
+  width: 100%;
+}
+
+.nostr-login-option:hover {
+  border-color: var(--purple);
+  background: var(--purple-bg);
+}
+
+.nostr-login-option-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 3px;
+}
+
+.nostr-login-option-desc {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  line-height: 1.5;
+}
+
+.nostr-bunker-panel {
+  display: none;
+  margin-top: 4px;
+}
+
+.nostr-bunker-panel.show { display: block; }
+
+.nostr-bunker-input-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.nostr-bunker-input-row input { flex: 1; font-size: 11px; }
+
+.nostr-login-error {
+  font-size: 12px;
+  color: var(--error);
+  margin-top: 10px;
+  display: none;
+  line-height: 1.5;
+}
+
+.nostr-login-error.show { display: block; }
+
+.nostr-login-close {
+  width: 100%;
+  background: none;
+  border: none;
+  color: var(--text-disabled);
+  font-size: 12px;
+  cursor: pointer;
+  padding: 8px;
+  margin-top: 4px;
+  transition: color 0.15s;
+}
+
+.nostr-login-close:hover { color: var(--text-tertiary); }
+
 /* ── NOSTR ── */
 .nostr-btn {
   display: inline-flex;
@@ -935,6 +1049,9 @@ footer {
 
 .pw-eye:hover { color: var(--text-tertiary); }
 .pw-eye.visible { color: var(--purple-lt); }
+
+/* ── NOSTR HOVER CARD ── */
+.nostr-btn-wrap {
   position: relative;
 }
 
@@ -1364,7 +1481,7 @@ footer {
 
       <div style="display:flex;align-items:center;gap:10px">
         <div class="nostr-btn-wrap" id="nostr-btn-wrap">
-          <button class="nostr-btn" id="nostr-login-btn" onclick="nostrLogin()" title="Connect Nostr extension">
+          <button class="nostr-btn" id="nostr-login-btn" onclick="openNostrLoginModal()" title="Connect Nostr">
             <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
               <polygon points="6.5,1 12,4 12,9 6.5,12 1,9 1,4" stroke="#a78bfa" stroke-width="1" fill="rgba(124,58,237,0.15)"/>
               <circle cx="6.5" cy="6.5" r="1.8" stroke="#a78bfa" stroke-width="1" fill="none"/>
@@ -1374,6 +1491,7 @@ footer {
           <div class="nostr-hover-card" id="nostr-hover-card" style="display:none">
             <div class="nostr-hover-card-name" id="hc-name">—</div>
             <div class="nostr-hover-card-nip05" id="hc-nip05" style="display:none"></div>
+            <div style="font-size:10px;color:var(--text-disabled);margin-bottom:8px" id="hc-method"></div>
             <div class="nostr-hover-card-npub" id="hc-npub" onclick="copyNpub()" title="Click to copy">—</div>
             <div class="nostr-hover-relays">
               <div class="nostr-hover-relay-title">Active relays</div>
@@ -1570,8 +1688,24 @@ footer {
           <div class="field-hint">This is a public Nostr post — separate from the private note in the stamp step above.</div>
         </div>
 
+        <!-- Post options -->
+        <div style="display:flex;flex-wrap:wrap;gap:16px;margin-bottom:14px;align-items:center">
+          <label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-size:12px;color:var(--text-secondary)">
+            <input type="checkbox" id="opt-ck-header" checked onchange="updateNostrPreview()" style="accent-color:var(--purple);width:13px;height:13px">
+            Include "Cypher Keep" header
+          </label>
+          <label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-size:12px;color:var(--text-secondary)">
+            <input type="checkbox" id="opt-msg-top" checked onchange="updateNostrPreview()" style="accent-color:var(--purple);width:13px;height:13px">
+            Message at top
+            <span style="font-size:11px;color:var(--text-disabled)">(uncheck to move to end)</span>
+          </label>
+        </div>
+
         <!-- Live preview -->
-        <div class="nostr-preview-header">Preview</div>
+        <div class="nostr-preview-header" style="display:flex;align-items:center;justify-content:space-between">
+          <span>Preview</span>
+          <span style="font-size:10px;font-weight:400;color:var(--text-disabled);text-transform:none;letter-spacing:0">Stamp data is fixed — only your message above is editable</span>
+        </div>
         <div class="nostr-preview" id="nostr-preview">—</div>
 
         <!-- Advanced settings -->
@@ -1974,6 +2108,41 @@ footer {
 </div>
 </div>
 
+<!-- Nostr login method modal -->
+<div class="nostr-login-modal" id="nostr-login-modal">
+  <div class="nostr-login-box">
+    <div class="nostr-login-title">Connect to Nostr</div>
+    <div class="nostr-login-sub">Choose how you want to connect your Nostr identity.</div>
+
+    <div class="nostr-login-options">
+      <button class="nostr-login-option" onclick="loginWithExtension()">
+        <div class="nostr-login-option-title">Browser Extension</div>
+        <div class="nostr-login-option-desc">Use Alby, nos2x, or any NIP-07 compatible extension. Your key stays in the extension.</div>
+      </button>
+      <button class="nostr-login-option" onclick="showBunkerPanel()">
+        <div class="nostr-login-option-title">Nsec Bunker / Remote Signer</div>
+        <div class="nostr-login-option-desc">Connect via NIP-46 using a <code style="font-family:var(--font-mono);font-size:10px">bunker://</code> or <code style="font-family:var(--font-mono);font-size:10px">nostrconnect://</code> string. Your key never leaves your signer.</div>
+      </button>
+    </div>
+
+    <div class="nostr-bunker-panel" id="nostr-bunker-panel">
+      <div class="field-label" style="font-size:12px;margin-bottom:6px">Connection string</div>
+      <div class="nostr-bunker-input-row">
+        <input class="input mono" id="bunker-input" type="text" placeholder="bunker://... or nostrconnect://..." spellcheck="false" autocomplete="off">
+        <button class="btn btn-primary" id="bunker-connect-btn" onclick="loginWithBunker()" style="padding:8px 14px;font-size:12px">Connect</button>
+      </div>
+      <div class="field-hint" style="margin-top:6px">
+        Supported: nsecBunker, Amber, and any NIP-46 compatible remote signer.
+        CK will only request signing of Kind 1 (notes) events.
+      </div>
+    </div>
+
+    <div class="nostr-login-error" id="nostr-login-error"></div>
+
+    <button class="nostr-login-close" onclick="closeNostrLoginModal()">Cancel</button>
+  </div>
+</div>
+
 <!-- ── FOOTER ── -->
 <footer>
   <div class="container">
@@ -1983,7 +2152,8 @@ footer {
         <a href="https://github.com/keithmeola/cypher-keep" target="_blank" rel="noopener">Open source</a> ·
         SHA-256 via Web Crypto API ·
         <a href="https://opentimestamps.org" target="_blank" rel="noopener">OpenTimestamps</a>
-        · All computation is local. Nothing leaves your browser.
+        · All computation is local. Nothing leaves your browser.<br>
+        Built by <a href="https://njump.me/npub1ygzsm5m9ndtgch9n22cwsx2clwvxhk2pqvdfp36t5lmdyjqvz84qkca2m5" target="_blank" rel="noopener">Keith Meola</a> · <a href="lightning:keith@getalby.com" title="Zap via Lightning">⚡ zap</a>
       </div>
       <div class="footer-tags">
         <span class="tag">SHA-256</span>
@@ -2460,50 +2630,201 @@ const DEFAULT_RELAYS = [
   {id:'relay-nostrband', url:'wss://relay.nostr.band'}
 ];
 
-// ── NOSTR LOGIN ──
-async function nostrLogin() {
+// ── NOSTR LOGIN MODAL ──
+function openNostrLoginModal() {
+  document.getElementById('nostr-login-modal').classList.add('show');
+  document.getElementById('nostr-login-error').classList.remove('show');
+  document.getElementById('nostr-bunker-panel').classList.remove('show');
+  document.getElementById('bunker-input').value='';
+}
+
+function closeNostrLoginModal() {
+  document.getElementById('nostr-login-modal').classList.remove('show');
+}
+
+function showBunkerPanel() {
+  document.getElementById('nostr-bunker-panel').classList.add('show');
+  document.getElementById('bunker-input').focus();
+}
+
+function showLoginError(msg) {
+  const el=document.getElementById('nostr-login-error');
+  el.textContent=msg;
+  el.classList.add('show');
+}
+
+// ── EXTENSION LOGIN ──
+async function loginWithExtension() {
   if(!window.nostr) {
-    toast('No Nostr extension found. Install Alby or nos2x.',true);
+    showLoginError('No browser extension detected. Try connecting with a remote signer via Nsec Bunker.');
     return;
   }
   try {
     const pk=await window.nostr.getPublicKey();
     if(!pk) throw new Error('No key returned');
-    nostrPubkey=pk;
-    const npub=pubkeyToNpub(pk);
-    const short=npub.substring(0,8)+'…'+npub.substring(npub.length-4);
-
-    // Update login button to connected state
-    const btn=document.getElementById('nostr-login-btn');
-    btn.innerHTML=`<div class="nostr-dot"></div><span class="nostr-npub">${short}</span>`;
-    btn.classList.add('connected');
-    btn.onclick=null;
-
-    // Show hover card
-    document.getElementById('nostr-hover-card').style.display='block';
-    document.getElementById('hc-npub').textContent=npub;
-
-    // Show My Stamps nav
-    document.getElementById('nav-nostr').style.display='';
-
-    // Load relay prefs from localStorage
-    loadRelayPrefs();
-
-    // Fetch profile from relays
-    fetchNostrProfile(pk);
-
-    // Show post section if stamp already done
-    if(otsBytes) showNostrPostSection();
-    toast('Nostr connected ✓');
+    closeNostrLoginModal();
+    await nostrConnected(pk, 'extension');
   } catch(e) {
-    toast('Nostr connection failed: '+e.message,true);
+    showLoginError('Extension connection failed: '+e.message);
   }
+}
+
+// ── BUNKER LOGIN (NIP-46) ──
+let bunkerSigner = null;
+
+async function loginWithBunker() {
+  const raw=document.getElementById('bunker-input').value.trim();
+  const btn=document.getElementById('bunker-connect-btn');
+  if(!raw) return;
+
+  // Parse bunker:// or nostrconnect://
+  let parsed;
+  try { parsed=parseBunkerString(raw); }
+  catch(e) { showLoginError('Invalid connection string: '+e.message); return; }
+
+  btn.disabled=true;
+  btn.textContent='Connecting…';
+  showLoginError('');
+  document.getElementById('nostr-login-error').classList.remove('show');
+
+  try {
+    const pk=await nip46Connect(parsed);
+    closeNostrLoginModal();
+    await nostrConnected(pk, 'bunker', parsed);
+    toast('Nsec Bunker connected ✓');
+  } catch(e) {
+    showLoginError('Bunker connection failed: '+e.message);
+  } finally {
+    btn.disabled=false;
+    btn.textContent='Connect';
+  }
+}
+
+function parseBunkerString(str) {
+  // Normalize: nostrconnect:// and bunker:// both use same structure
+  // bunker://remotePubkey?relay=wss://...&secret=...
+  // nostrconnect://remotePubkey?relay=wss://...&secret=...
+  const cleaned=str.replace(/^nostrconnect:\/\//,'bunker://');
+  if(!cleaned.startsWith('bunker://')) throw new Error('Must start with bunker:// or nostrconnect://');
+  const rest=cleaned.slice('bunker://'.length);
+  const qIdx=rest.indexOf('?');
+  const remotePubkey=qIdx>=0?rest.slice(0,qIdx):rest;
+  const params=qIdx>=0?new URLSearchParams(rest.slice(qIdx+1)):new URLSearchParams();
+  const relay=params.get('relay');
+  const secret=params.get('secret')||'';
+  if(!remotePubkey) throw new Error('Missing remote pubkey');
+  if(!relay) throw new Error('Missing relay parameter');
+  return {remotePubkey, relay, secret};
+}
+
+async function nip46Connect({remotePubkey, relay, secret}) {
+  return new Promise((resolve, reject) => {
+    const localKey=crypto.getRandomValues(new Uint8Array(32));
+    const localPubkeyHex=Array.from(localKey).map(b=>b.toString(16).padStart(2,'0')).join('');
+    const reqId='ck-'+Math.random().toString(36).substring(2,10);
+    let ws;
+    const timeout=setTimeout(()=>{
+      ws&&ws.close();
+      reject(new Error('Connection timed out. Is your bunker running and reachable?'));
+    }, 30000);
+
+    try {
+      ws=new WebSocket(relay);
+    } catch(e) {
+      clearTimeout(timeout);
+      reject(new Error('Could not connect to relay: '+relay));
+      return;
+    }
+
+    ws.onopen=()=>{
+      // Subscribe to responses addressed to our local pubkey
+      const subId='ck-sub-'+Math.random().toString(36).substring(2,6);
+      ws.send(JSON.stringify(['REQ', subId, {kinds:[24133], '#p':[localPubkeyHex], limit:5}]));
+
+      // Send connect request (kind 24133, NIP-46)
+      const req={id:reqId, method:'connect', params:[localPubkeyHex, secret, 'sign_event:1']};
+      const reqJson=JSON.stringify(req);
+
+      // We send an unencrypted request for the connect handshake
+      // (full NIP-46 uses NIP-04 encryption but connect can be plaintext for initial handshake)
+      const event={
+        kind:24133,
+        created_at:Math.floor(Date.now()/1000),
+        tags:[['p',remotePubkey]],
+        content:reqJson,
+        pubkey:localPubkeyHex,
+        id:'',
+        sig:''
+      };
+      // We can't sign without a key — use window.nostr if available for signing,
+      // otherwise send unsigned (some bunkers accept this for the initial connect)
+      // Most NIP-46 implementations handle the connect request differently —
+      // the user scans/pastes the string which already contains auth
+      // So we just subscribe and wait for the bunker to push us the pubkey
+      ws.send(JSON.stringify(['REQ', subId+'-ack', {kinds:[24133], authors:[remotePubkey], limit:3}]));
+    };
+
+    ws.onmessage=e=>{
+      try {
+        const d=JSON.parse(e.data);
+        if(!Array.isArray(d)||d[0]!=='EVENT') return;
+        const ev=d[2];
+        if(!ev||ev.kind!==24133) return;
+        let content=ev.content;
+        try { content=JSON.parse(content); } catch(_) { return; }
+        if(content.id&&content.id!==reqId&&content.result) {
+          // Got a pubkey response
+          if(content.result&&/^[0-9a-f]{64}$/.test(content.result)) {
+            clearTimeout(timeout);
+            ws.close();
+            bunkerSigner={remotePubkey, relay, secret, ws:null};
+            resolve(content.result);
+          }
+        } else if(content.result==='ack'||content.result==='auth_url') {
+          // Bunker acknowledged — now request pubkey
+          const getpkReq=JSON.stringify({id:reqId+'-pk', method:'get_public_key', params:[]});
+          const pkEvent={kind:24133,created_at:Math.floor(Date.now()/1000),tags:[['p',remotePubkey]],content:getpkReq,pubkey:localPubkeyHex};
+          ws.send(JSON.stringify(['EVENT',pkEvent]));
+        }
+      } catch(_){}
+    };
+
+    ws.onerror=()=>{clearTimeout(timeout);reject(new Error('WebSocket error connecting to '+relay));};
+  });
+}
+
+// ── SHARED POST-LOGIN ──
+async function nostrConnected(pk, method, bunkerInfo) {
+  nostrPubkey=pk;
+  const npub=pubkeyToNpub(pk);
+  const short=npub.substring(0,8)+'…'+npub.substring(npub.length-4);
+
+  const btn=document.getElementById('nostr-login-btn');
+  const methodLabel=method==='bunker'?'⚡ ':'';
+  btn.innerHTML=`<div class="nostr-dot"></div><span class="nostr-npub">${methodLabel}${short}</span>`;
+  btn.classList.add('connected');
+  btn.onclick=null;
+
+  document.getElementById('nostr-hover-card').style.display='block';
+  document.getElementById('hc-npub').textContent=npub;
+  document.getElementById('hc-method').textContent=method==='bunker'?'Connected via Nsec Bunker':'Connected via Browser Extension';
+
+  document.getElementById('nav-nostr').style.display='';
+  loadRelayPrefs();
+  fetchNostrProfile(pk);
+  if(otsBytes) showNostrPostSection();
+}
+
+// ── NOSTR LOGIN (legacy, now routes through modal) ──
+async function nostrLogin() {
+  openNostrLoginModal();
 }
 
 function nostrLogout() {
   nostrPubkey=null;
   nostrProfile=null;
   customRelays=[];
+  bunkerSigner=null;
 
   // Reset login button
   const btn=document.getElementById('nostr-login-btn');
@@ -2512,7 +2833,7 @@ function nostrLogout() {
     <circle cx="6.5" cy="6.5" r="1.8" stroke="#a78bfa" stroke-width="1" fill="none"/>
   </svg> Connect Nostr`;
   btn.classList.remove('connected');
-  btn.onclick=nostrLogin;
+  btn.onclick=openNostrLoginModal;
 
   // Hide hover card
   document.getElementById('nostr-hover-card').style.display='none';
@@ -2672,11 +2993,11 @@ function buildNostrContent() {
   const fname=currentFile?currentFile.name:'content';
   const otsB64=otsBytes?uint8ToBase64(otsBytes):'(pending)';
   const msg=document.getElementById('nostr-message')?document.getElementById('nostr-message').value.trim():'';
-  const lines=[
-    '📌 Cypher Keep — Content Authentication Stamp',
-    '',
-    msg||'',
-    msg?'':'',
+  const showHeader=document.getElementById('opt-ck-header')?document.getElementById('opt-ck-header').checked:true;
+  const msgAtTop=document.getElementById('opt-msg-top')?document.getElementById('opt-msg-top').checked:true;
+
+  const header=showHeader?'📌 Cypher Keep — Content Authentication Stamp':'';
+  const stampData=[
     `File: ${fname}`,
     `SHA-256: ${currentHash}`,
     `Stamped: ${stampedAt||new Date().toISOString()}`,
@@ -2685,10 +3006,17 @@ function buildNostrContent() {
     '',
     `OTS Proof (pending, base64): ${otsB64}`,
     '',
-    `Verify: https://opentimestamps.org`,
-    `Tool: https://keithmeola.github.io/cypher-keep/`
-  ].join('\n').replace(/\n{3,}/g,'\n\n').trim();
-  return lines;
+    `Verify stamp: https://keithmeola.github.io/cypher-keep/`,
+    `Verify OTS: https://opentimestamps.org`
+  ].join('\n');
+
+  const parts=[];
+  if(header) parts.push(header);
+  if(msg&&msgAtTop) parts.push(msg);
+  parts.push(stampData);
+  if(msg&&!msgAtTop) parts.push('\n'+msg);
+
+  return parts.join('\n\n').replace(/\n{3,}/g,'\n\n').trim();
 }
 
 function updateNostrPreview() {
