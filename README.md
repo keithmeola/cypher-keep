@@ -93,7 +93,7 @@ PGP: `DB31 D0E3 FDAC A0A8 BF61  950E 53AE 9EF6 09AF EAD7` — [fetch key](https:
 
 ## License
 
-License TBD — deciding between MIT and AGPL. Will be added before first public announcement.
+MIT License — free to use, fork, modify, and build on. See [LICENSE](LICENSE).
 
 ---
 
