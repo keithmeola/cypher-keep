@@ -97,4 +97,4 @@ MIT License — free to use, fork, modify, and build on. See [LICENSE](LICENSE).
 
 ---
 
-*Cypherpunks write code.*
+*Cypherpunks vibecode if they can't write it.*
