@@ -1070,7 +1070,7 @@ footer {
   animation: fadeIn 0.15s ease;
 }
 
-.nostr-btn-wrap:hover .nostr-hover-card { display: block; }
+.nostr-btn-wrap:hover .nostr-hover-card[data-connected="true"] { display: block; }
 
 .nostr-hover-card-name {
   font-size: 13px;
@@ -1488,7 +1488,7 @@ footer {
             </svg>
             Connect Nostr
           </button>
-          <div class="nostr-hover-card" id="nostr-hover-card" style="display:none">
+          <div class="nostr-hover-card" id="nostr-hover-card">
             <div class="nostr-hover-card-name" id="hc-name">—</div>
             <div class="nostr-hover-card-nip05" id="hc-nip05" style="display:none"></div>
             <div style="font-size:10px;color:var(--text-disabled);margin-bottom:8px" id="hc-method"></div>
@@ -1726,6 +1726,10 @@ footer {
             <input type="checkbox" id="relay-nostrband" checked onchange="saveRelayPrefs()">
             <label for="relay-nostrband">relay.nostr.band</label>
           </div>
+          <div class="relay-check-row">
+            <input type="checkbox" id="relay-primal" checked onchange="saveRelayPrefs()">
+            <label for="relay-primal">relay.primal.net</label>
+          </div>
           <div id="custom-relay-list"></div>
           <div class="relay-custom-row">
             <input class="input mono" id="custom-relay-input" type="text" placeholder="wss://your-relay.com" style="font-size:11px">
@@ -1783,6 +1787,15 @@ footer {
 <!-- ══════════════════════════ VERIFY ══════════════════════════ -->
 <div class="view" id="view-verify">
 <div class="container">
+
+  <!-- Sub-navigation -->
+  <div class="enc-tabs" style="margin-bottom:28px">
+    <button class="enc-tab active" id="vtab-stamp" onclick="setVerifyTab('stamp')">Verify a Stamp</button>
+    <button class="enc-tab" id="vtab-hash" onclick="setVerifyTab('hash')">Verify a Hash</button>
+  </div>
+
+  <!-- ── VERIFY A STAMP ── -->
+  <div id="vpanel-stamp">
 
   <div class="page-header">
     <h1>Verify a stamp</h1>
@@ -1870,6 +1883,85 @@ footer {
   </button>
 
   <div class="verify-result" id="verify-result"></div>
+
+  </div><!-- end vpanel-stamp -->
+
+  <!-- ── VERIFY A HASH ── -->
+  <div id="vpanel-hash" class="hidden">
+
+  <div class="page-header">
+    <h1>Verify a file hash</h1>
+    <p>Compute the SHA-256 hash of any file locally — then optionally compare it against an expected hash to confirm the file is unaltered. Nothing leaves your browser.</p>
+  </div>
+
+  <div class="step-label">
+    <div class="step-num">1</div>
+    <div class="step-title">Select file</div>
+  </div>
+
+  <div class="card">
+    <div class="card-body">
+      <div class="drop-zone" id="vh-drop">
+        <input type="file" id="vh-file-input">
+        <div class="drop-icon">
+          <svg viewBox="0 0 36 36" fill="none">
+            <rect x="5" y="9" width="26" height="20" rx="1.5" stroke="#94a3b8" stroke-width="1.3" fill="none"/>
+            <line x1="5" y1="15.5" x2="31" y2="15.5" stroke="#475569" stroke-width="1"/>
+            <line x1="12" y1="21" x2="24" y2="21" stroke="#475569" stroke-width="1"/>
+            <line x1="12" y1="25" x2="19" y2="25" stroke="#475569" stroke-width="1"/>
+          </svg>
+        </div>
+        <h3>Drop any file here</h3>
+        <p>Any format · Hash computed locally · File never leaves your browser</p>
+      </div>
+      <div class="file-chip" id="vh-file-chip">
+        <div class="file-chip-icon" id="vh-chip-ext">—</div>
+        <div class="file-chip-meta">
+          <div class="file-chip-name" id="vh-chip-name">—</div>
+          <div class="file-chip-size" id="vh-chip-size">—</div>
+        </div>
+        <button class="btn-icon" onclick="clearVhFile()" title="Remove file">×</button>
+      </div>
+
+      <div class="progress" id="vh-progress" style="margin-top:12px">
+        <div class="progress-row">
+          <span id="vh-prog-label">Computing SHA-256...</span>
+          <span id="vh-prog-pct">0%</span>
+        </div>
+        <div class="progress-track">
+          <div class="progress-fill" id="vh-prog-bar" style="width:0%"></div>
+        </div>
+      </div>
+
+      <div id="vh-hash-result" style="display:none;margin-top:16px">
+        <div class="hash-label">SHA-256</div>
+        <div class="hash-value-wrap">
+          <div class="hash-value" id="vh-hash-value">—</div>
+          <button class="btn-copy" id="vh-copy-btn" onclick="copyText(vhCurrentHash,'vh-copy-btn')">Copy</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="step-label" style="margin-top:6px">
+    <div class="step-num">2</div>
+    <div class="step-title">Compare against expected hash <span style="font-weight:400;color:var(--text-disabled);text-transform:none;font-size:11px;letter-spacing:0">— optional</span></div>
+  </div>
+
+  <div class="card">
+    <div class="card-body">
+      <div class="field">
+        <label class="field-label">Expected SHA-256</label>
+        <input class="input mono" id="vh-expected" type="text" maxlength="64"
+          placeholder="Paste the hash published by the source..." spellcheck="false" oninput="doVhCompare()">
+        <div class="field-hint">Paste the hash from the software publisher, document author, or original source to confirm your file matches.</div>
+      </div>
+    </div>
+  </div>
+
+  <div id="vh-compare-result" style="display:none;margin-bottom:14px"></div>
+
+  </div><!-- end vpanel-hash -->
 
 </div>
 </div>
@@ -2222,6 +2314,7 @@ makeDrop('v-drop','v-file-input',loadVerifyFile);
 makeDrop('ots-drop','ots-input',loadOTSFile);
 makeDrop('enc-drop','enc-file-input',loadEncFile);
 makeDrop('dec-drop','dec-file-input',loadDecFile);
+makeDrop('vh-drop','vh-file-input',loadVhFile);
 
 function showChip(chipId, extId, nameId, sizeId, f) {
   document.getElementById(extId).textContent  = f.name.split('.').pop().substring(0,5).toUpperCase()||'FILE';
@@ -2420,6 +2513,100 @@ function copySummary() {
     setTimeout(()=>btn.textContent=o,2000);
     toast('Summary copied');
   });
+}
+
+// ── VERIFY TAB SWITCHER ──
+function setVerifyTab(tab) {
+  document.getElementById('vtab-stamp').classList.toggle('active', tab==='stamp');
+  document.getElementById('vtab-hash').classList.toggle('active', tab==='hash');
+  document.getElementById('vpanel-stamp').classList.toggle('hidden', tab!=='stamp');
+  document.getElementById('vpanel-hash').classList.toggle('hidden', tab!=='hash');
+  if(tab==='hash') clearVhFile();
+}
+
+// ── VERIFY HASH ──
+let vhCurrentHash = null;
+
+function loadVhFile(f) {
+  vhCurrentHash = null;
+  showChip('vh-file-chip','vh-chip-ext','vh-chip-name','vh-chip-size', f);
+  document.getElementById('vh-hash-result').style.display='none';
+  document.getElementById('vh-compare-result').style.display='none';
+  document.getElementById('vh-expected').value='';
+  computeVhHash(f);
+}
+
+function clearVhFile() {
+  vhCurrentHash = null;
+  document.getElementById('vh-file-input').value='';
+  document.getElementById('vh-file-chip').classList.remove('show');
+  document.getElementById('vh-hash-result').style.display='none';
+  document.getElementById('vh-compare-result').style.display='none';
+  document.getElementById('vh-prog-bar').style.width='0%';
+  document.getElementById('vh-progress').classList.remove('show');
+}
+
+async function computeVhHash(f) {
+  document.getElementById('vh-progress').classList.add('show');
+  document.getElementById('vh-prog-pct').textContent='0%';
+  document.getElementById('vh-prog-label').textContent='Reading file...';
+  document.getElementById('vh-prog-bar').style.width='0%';
+  try {
+    const buf = await new Promise((res,rej)=>{
+      const r=new FileReader();
+      r.onprogress=e=>{
+        if(e.lengthComputable){
+          const pct=Math.round(e.loaded/e.total*68);
+          document.getElementById('vh-prog-bar').style.width=pct+'%';
+          document.getElementById('vh-prog-pct').textContent=pct+'%';
+        }
+      };
+      r.onload=e=>res(e.target.result);
+      r.onerror=()=>rej(new Error('Read failed'));
+      r.readAsArrayBuffer(f);
+    });
+    document.getElementById('vh-prog-label').textContent='Computing SHA-256...';
+    document.getElementById('vh-prog-bar').style.width='80%';
+    document.getElementById('vh-prog-pct').textContent='80%';
+    const dig = await crypto.subtle.digest('SHA-256', buf);
+    const hex = Array.from(new Uint8Array(dig)).map(b=>b.toString(16).padStart(2,'0')).join('');
+    await sleep(150);
+    document.getElementById('vh-progress').classList.remove('show');
+    document.getElementById('vh-prog-bar').style.width='0%';
+    vhCurrentHash = hex;
+    document.getElementById('vh-hash-value').textContent = hex;
+    document.getElementById('vh-hash-result').style.display='block';
+    doVhCompare();
+    toast('Hash computed ✓');
+  } catch(e) {
+    document.getElementById('vh-progress').classList.remove('show');
+    toast('Hash error: '+e.message, true);
+  }
+}
+
+function doVhCompare() {
+  const resultEl = document.getElementById('vh-compare-result');
+  const expected = document.getElementById('vh-expected').value.trim().toLowerCase();
+  if(!vhCurrentHash || !expected) { resultEl.style.display='none'; return; }
+  if(!/^[0-9a-f]{64}$/.test(expected)) { resultEl.style.display='none'; return; }
+  resultEl.style.display='block';
+  if(vhCurrentHash === expected) {
+    resultEl.innerHTML=`<div class="verify-ok" style="padding:18px 20px">
+      <div class="verify-ok-icon" style="width:36px;height:36px;margin:0 auto 10px">
+        <svg viewBox="0 0 48 48" fill="none"><circle cx="24" cy="24" r="22" stroke="#22c55e" stroke-width="1.5"/>
+        <polyline points="14,24 21,31 34,16" stroke="#22c55e" stroke-width="2" fill="none" stroke-linecap="round"/></svg>
+      </div>
+      <h2 style="font-size:15px">Hash match</h2>
+      <p style="font-size:13px">The file matches the expected hash. The content is unaltered.</p>
+    </div>`;
+    toast('Hash match ✓');
+  } else {
+    resultEl.innerHTML=`<div class="verify-fail" style="padding:18px 20px">
+      <h2 style="font-size:15px">Hash mismatch</h2>
+      <p style="font-size:13px">The file does not match the expected hash. The content may have been modified, or the wrong file was selected.</p>
+    </div>`;
+    toast('Hash mismatch', true);
+  }
 }
 
 // ── VERIFY ──
@@ -2627,7 +2814,8 @@ let customRelays = [];
 const DEFAULT_RELAYS = [
   {id:'relay-damus',  url:'wss://relay.damus.io'},
   {id:'relay-nosio',  url:'wss://nos.lol'},
-  {id:'relay-nostrband', url:'wss://relay.nostr.band'}
+  {id:'relay-nostrband', url:'wss://relay.nostr.band'},
+  {id:'relay-primal', url:'wss://relay.primal.net'}
 ];
 
 // ── NOSTR LOGIN MODAL ──
@@ -2805,7 +2993,7 @@ async function nostrConnected(pk, method, bunkerInfo) {
   btn.classList.add('connected');
   btn.onclick=null;
 
-  document.getElementById('nostr-hover-card').style.display='block';
+  document.getElementById('nostr-hover-card').dataset.connected='true';
   document.getElementById('hc-npub').textContent=npub;
   document.getElementById('hc-method').textContent=method==='bunker'?'Connected via Nsec Bunker':'Connected via Browser Extension';
 
@@ -2836,7 +3024,7 @@ function nostrLogout() {
   btn.onclick=openNostrLoginModal;
 
   // Hide hover card
-  document.getElementById('nostr-hover-card').style.display='none';
+  document.getElementById('nostr-hover-card').removeAttribute('data-connected');
 
   // Hide My Stamps nav
   document.getElementById('nav-nostr').style.display='none';
@@ -2965,7 +3153,7 @@ function addCustomRelayToList(url) {
   row.className='relay-check-row';
   row.dataset.url=url;
   row.innerHTML=`
-    <input type="checkbox" checked disabled style="accent-color:var(--purple)">
+    <input type="checkbox" checked style="accent-color:var(--purple);width:13px;height:13px;pointer-events:none">
     <label style="font-family:var(--font-mono);font-size:11px;color:var(--text-secondary);flex:1">${escHtml(url.replace('wss://',''))}</label>
     <button onclick="removeCustomRelay('${escHtml(url)}')" style="background:none;border:none;color:var(--text-tertiary);cursor:pointer;font-size:12px;padding:0 4px" title="Remove">×</button>`;
   container.appendChild(row);
