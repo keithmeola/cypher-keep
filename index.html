@@ -1964,19 +1964,38 @@ footer {
 
   <div class="card">
     <div class="card-body">
-      <div class="drop-zone" id="ots-drop">
-        <input type="file" id="ots-input" accept=".ots">
-        <div class="drop-icon">
-          <svg viewBox="0 0 36 36" fill="none">
-            <rect x="7" y="4" width="22" height="28" rx="1.5" stroke="#f7931a" stroke-width="1.3" fill="none"/>
-            <line x1="12" y1="13" x2="24" y2="13" stroke="#8a5010" stroke-width="1"/>
-            <line x1="12" y1="17" x2="24" y2="17" stroke="#8a5010" stroke-width="1"/>
-            <line x1="12" y1="21" x2="19" y2="21" stroke="#8a5010" stroke-width="1"/>
-          </svg>
-        </div>
-        <h3>Drop .ots proof file</h3>
-        <p>Generated when the content was originally stamped</p>
+      <div class="toggle-row" style="margin-bottom:14px">
+        <button class="toggle-btn active" id="ots-mode-file-btn" onclick="setOTSMode('file')">Upload .ots file</button>
+        <button class="toggle-btn" id="ots-mode-b64-btn" onclick="setOTSMode('base64')">Paste base64</button>
       </div>
+
+      <div id="ots-file-wrap">
+        <div class="drop-zone" id="ots-drop">
+          <input type="file" id="ots-input" accept=".ots">
+          <div class="drop-icon">
+            <svg viewBox="0 0 36 36" fill="none">
+              <rect x="7" y="4" width="22" height="28" rx="1.5" stroke="#f7931a" stroke-width="1.3" fill="none"/>
+              <line x1="12" y1="13" x2="24" y2="13" stroke="#8a5010" stroke-width="1"/>
+              <line x1="12" y1="17" x2="24" y2="17" stroke="#8a5010" stroke-width="1"/>
+              <line x1="12" y1="21" x2="19" y2="21" stroke="#8a5010" stroke-width="1"/>
+            </svg>
+          </div>
+          <h3>Drop .ots proof file</h3>
+          <p>Generated when the content was originally stamped</p>
+        </div>
+      </div>
+
+      <div id="ots-b64-wrap" class="hidden">
+        <div class="field">
+          <label class="field-label">Base64-encoded .ots proof</label>
+          <textarea class="input mono" id="ots-b64-input" rows="4"
+            placeholder="Paste base64 proof from metadata JSON or Nostr confirmation note…"
+            spellcheck="false" oninput="loadOTSFromBase64()"
+            style="font-size:12px;resize:vertical;min-height:90px"></textarea>
+          <div class="field-hint">The <code style="font-family:var(--font-mono);font-size:12px">ots_proof_base64</code> field from metadata JSON, or the <code style="font-family:var(--font-mono);font-size:12px">OTS Proof</code> field from a Nostr confirmation note.</div>
+        </div>
+      </div>
+
       <div class="file-chip" id="ots-chip">
         <div class="file-chip-icon" style="color:var(--orange);border-color:var(--orange-border);background:var(--orange-bg)">OTS</div>
         <div class="file-chip-meta">
@@ -2764,6 +2783,55 @@ function setVerifyMode(mode) {
   checkVerifyReady();
 }
 
+function setOTSMode(mode) {
+  document.getElementById('ots-mode-file-btn').classList.toggle('active',mode==='file');
+  document.getElementById('ots-mode-b64-btn').classList.toggle('active',mode==='base64');
+  document.getElementById('ots-file-wrap').classList.toggle('hidden',mode!=='file');
+  document.getElementById('ots-b64-wrap').classList.toggle('hidden',mode!=='base64');
+  // Clear OTS state when switching modes
+  verifyOTS=null;
+  verifyOTSName=null;
+  document.getElementById('ots-chip').classList.remove('show');
+  checkVerifyReady();
+}
+
+function loadOTSFromBase64() {
+  const input=document.getElementById('ots-b64-input');
+  if(!input) return;
+  const raw=input.value.trim();
+  if(!raw) {
+    verifyOTS=null;
+    verifyOTSName=null;
+    document.getElementById('ots-chip').classList.remove('show');
+    checkVerifyReady();
+    return;
+  }
+  try {
+    // Strip whitespace and newlines — base64 may be wrapped
+    const clean=raw.replace(/\s+/g,'');
+    const bytes=base64ToUint8(clean);
+    if(bytes.length < 50) throw new Error('Too short');
+    verifyOTS=bytes;
+    verifyOTSName='pasted-proof.ots';
+    document.getElementById('ots-chip-name').textContent='Pasted base64 proof';
+    document.getElementById('ots-chip-size').textContent=fmtBytes(bytes.length);
+    document.getElementById('ots-chip').classList.add('show');
+    checkVerifyReady();
+  } catch(_) {
+    verifyOTS=null;
+    verifyOTSName=null;
+    document.getElementById('ots-chip').classList.remove('show');
+    checkVerifyReady();
+  }
+}
+
+function base64ToUint8(b64) {
+  const bin=atob(b64);
+  const out=new Uint8Array(bin.length);
+  for(let i=0;i<bin.length;i++) out[i]=bin.charCodeAt(i);
+  return out;
+}
+
 async function loadVerifyFile(f) {
   const buf=await f.arrayBuffer();
   const dig=await crypto.subtle.digest('SHA-256',buf);
@@ -3098,6 +3166,8 @@ function verifyFromStamp(hash) {
   if(resultEl){resultEl.innerHTML='';resultEl.classList.remove('show');}
   const otsChip=document.getElementById('ots-chip');
   if(otsChip) otsChip.classList.remove('show');
+  // Reset OTS input mode to file
+  setOTSMode('file');
   // Fill hash
   document.getElementById('v-hash-input').value=hash;
   checkVerifyReady();
@@ -3327,9 +3397,12 @@ async function autoFillConfirmNevent(hash) {
       window._lastNostrNevent=eventIdToNevent(found.id);
       input.value=window._lastNostrNevent;
       input.placeholder='Found on relays';
+      // Extract stamp time from the original event if we don't have it in session
+      if(!stampedAt && found.created_at) {
+        stampedAt=new Date(found.created_at*1000).toISOString();
+      }
     } else {
       input.placeholder='Not found — paste nevent1 or event ID manually';
-      // Uncheck reply by default if no event found
       const chk=document.getElementById('confirm-reply-check');
       if(chk) chk.checked=false;
     }
@@ -4130,7 +4203,7 @@ async function loadStamps() {
         `Event ID: ${escHtml(e.id)}`,
         `Relays:   ${foundOn.map(r=>escHtml(r)).join(', ')}`,
         '',
-        `Note content:`,
+        `── Nostr Note Content ─────────────────────────────`,
         escHtml(e.content||'').substring(0,800)+(e.content&&e.content.length>800?'…':'')
       ].join('\n');
 
@@ -4328,7 +4401,7 @@ function fmtBytes(b){if(!b)return'0 B';const k=1024,u=['B','KB','MB','GB'];const
 function sleep(ms){return new Promise(r=>setTimeout(r,ms));}
 function dlBlob(blob,name){const url=URL.createObjectURL(blob);const a=Object.assign(document.createElement('a'),{href:url,download:name});a.click();URL.revokeObjectURL(url);}
 function copyText(text,btnId){if(!text)return;navigator.clipboard.writeText(text).then(()=>{const btn=document.getElementById(btnId);if(!btn)return;const o=btn.textContent;btn.textContent='Copied';btn.classList.add('copied');setTimeout(()=>{btn.textContent=o;btn.classList.remove('copied');},1800);});}
-function toast(msg,isErr=false){const el=document.getElementById('toast');el.textContent=msg;el.className='toast'+(isErr?' err':'');el.classList.add('show');setTimeout(()=>el.classList.remove('show'),3200);}
+function toast(msg,isErr=false){const el=document.getElementById('toast');el.textContent=msg;el.className='toast'+(isErr?' err':'');el.classList.add('show');setTimeout(()=>el.classList.remove('show'),5200);}
 
 // ── INIT ──
 document.addEventListener('DOMContentLoaded', () => {
