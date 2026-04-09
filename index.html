@@ -1088,16 +1088,27 @@ footer {
 .nostr-hover-card {
   display: none;
   position: absolute;
-  top: calc(100% + 4px);
+  top: calc(100% + 0px);
   right: 0;
   width: 260px;
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: 10px;
   padding: 16px;
+  padding-top: 20px;
+  margin-top: 4px;
   z-index: 300;
   box-shadow: 0 8px 32px rgba(0,0,0,0.5);
   animation: fadeIn 0.15s ease;
+}
+
+.nostr-hover-card::before {
+  content: '';
+  position: absolute;
+  top: -8px;
+  left: 0;
+  right: 0;
+  height: 8px;
 }
 
 .nostr-btn-wrap:hover .nostr-hover-card[data-connected="true"],
@@ -2884,17 +2895,23 @@ async function checkCalendarConfirmation(hash, calUrl) {
     const results = await OpenTimestamps.verify(detachedOts, detachedOriginal);
 
     if(results && Object.keys(results).length > 0) {
-      // Save the upgraded proof bytes
       const upgradedBytes = new Uint8Array(detachedOts.serializeToBytes());
       window._upgradedOTSBytes = upgradedBytes;
-
-      // Extract block height — results.bitcoin.height
       const btc = results.bitcoin || results[Object.keys(results)[0]];
       const blockHeight = (btc && typeof btc.height === 'number') ? btc.height : null;
-      return {confirmed: true, blockHeight};
+      const blockTimestamp = (btc && typeof btc.timestamp === 'number') ? btc.timestamp : null;
+      return {confirmed: true, blockHeight, blockTimestamp};
     }
 
-    // Empty results = still pending
+    // verify() returned {} — still pending via library. Try raw byte scan as fallback
+    // (handles edge cases where the library doesn't surface the attestation)
+    const upgradedBytes = new Uint8Array(detachedOts.serializeToBytes());
+    const scanResult = extractBitcoinAttestation(upgradedBytes);
+    if(scanResult.confirmed) {
+      window._upgradedOTSBytes = upgradedBytes;
+      return scanResult;
+    }
+
     return {confirmed: false};
 
   } catch(e) {
@@ -2933,16 +2950,21 @@ function pendingCheckHTML() {
 }
 
 function confirmedHTML(hash, proof, attestation, calUrl) {
-  const calShort=calUrl.replace('https://','').replace(/\/$/,'');
+  const calShort=(calUrl||'opentimestamps.org').replace('https://','').replace(/\/$/,'');
   const blockHeight=attestation.blockHeight;
+  const blockTimestamp=attestation.blockTimestamp||null;
   const explorerUrl=blockHeight?`https://mempool.space/block-height/${blockHeight}`:'https://mempool.space';
   const blockStr=blockHeight
     ? `<a href="${explorerUrl}" target="_blank" rel="noopener" style="color:var(--orange);font-weight:600">#${blockHeight} ↗</a>`
     : 'unknown';
+  const timeStr=blockTimestamp
+    ? `<br><strong>Mined:</strong> ${new Date(blockTimestamp*1000).toUTCString()}`
+    : '';
   const proofBase=proof?proof.replace(/\.ots$/,''):'content';
+
   const nostrSection=nostrPubkey
     ? `<div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border)">
-        <div style="font-size:13px;color:var(--text-secondary);margin-bottom:10px">
+        <div style="font-size:13px;font-weight:600;color:var(--text-secondary);margin-bottom:10px">
           ${window._lastNostrEventId
             ? 'Reply to your original stamp note with this confirmation:'
             : 'Have a Nostr stamp note to reply to? Paste the nevent or note ID:'}
@@ -2950,24 +2972,34 @@ function confirmedHTML(hash, proof, attestation, calUrl) {
         ${!window._lastNostrEventId ? `<div style="display:flex;gap:8px;margin-bottom:10px">
           <input class="input mono" id="confirm-nevent-input" type="text" placeholder="nevent1... or event ID hex" style="font-size:12px;flex:1">
         </div>` : ''}
-        <button class="btn btn-secondary" id="announce-confirm-btn" onclick="announceConfirmation(${blockHeight||'null'})">
+        <div class="field" style="margin-bottom:12px">
+          <label class="field-label">Add a note <span style="font-weight:400;color:var(--text-tertiary)">(optional)</span></label>
+          <textarea class="input" id="confirm-note-input" rows="2" placeholder="Add context to your confirmation announcement…" oninput="updateConfirmPreview('${escHtml(hash)}','${escHtml(calShort)}','${escHtml(proof||'')}',${blockHeight||'null'},${blockTimestamp||'null'})" style="min-height:52px;resize:vertical"></textarea>
+        </div>
+        <div class="nostr-preview-header" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+          <span>Preview</span>
+          <span style="font-size:12px;font-weight:400;color:var(--text-disabled);text-transform:none;letter-spacing:0">Stamp data is fixed</span>
+        </div>
+        <div class="nostr-preview" id="confirm-nostr-preview" style="margin-bottom:12px">${buildConfirmContent(hash,calShort,proof||'',blockHeight,blockTimestamp,'')}</div>
+        <button class="btn btn-secondary" id="announce-confirm-btn" onclick="announceConfirmation(${blockHeight||'null'},${blockTimestamp||'null'})">
           Announce confirmation on Nostr
         </button>
       </div>`
     : '';
+
   return `<div class="verify-ok">
     <div class="verify-ok-icon"><svg viewBox="0 0 48 48" fill="none"><circle cx="24" cy="24" r="22" stroke="#22c55e" stroke-width="1.5"/><polyline points="14,24 21,31 34,16" stroke="#22c55e" stroke-width="2" fill="none" stroke-linecap="round"/></svg></div>
     <h2>BITCOIN CONFIRMED</h2>
     <p>
-      This content existed prior to Bitcoin block ${blockStr}.<br><br>
+      This content existed prior to Bitcoin block ${blockStr}.${timeStr}<br><br>
       <strong>Calendar:</strong> ${escHtml(calShort)}<br>
       <strong>Hash:</strong> <code style="font-family:var(--font-mono);font-size:13px;color:var(--purple-lt)">${hash.substring(0,16)}…${hash.substring(48)}</code><br>
       <strong>Proof:</strong> ${escHtml(proof||'provided')}
     </p>
-    <div class="btn-row" style="margin-top:12px;flex-wrap:wrap">
+    <div class="btn-row" style="margin-top:12px;flex-wrap:wrap;justify-content:center">
       <a class="btn btn-secondary" href="${explorerUrl}" target="_blank" rel="noopener">View block ↗</a>
       <button class="btn btn-secondary" onclick="downloadUpgradedOTS('${escHtml(proofBase)}')">Download upgraded .ots</button>
-      <button class="btn btn-secondary" onclick="downloadVerifyMetaJSON(${blockHeight||'null'},'${escHtml(calShort)}','${escHtml(hash)}','${escHtml(proof||'')}')">Download metadata JSON</button>
+      <button class="btn btn-secondary" onclick="downloadVerifyMetaJSON(${blockHeight||'null'},'${escHtml(calShort)}','${escHtml(hash)}','${escHtml(proof||'')}',${blockTimestamp||'null'})">Download metadata JSON</button>
     </div>
     ${nostrSection}
   </div>`;
@@ -3000,25 +3032,23 @@ function failHTML(msg) {
 
 function downloadUpgradedOTS(proofBase) {
   if(!window._upgradedOTSBytes){toast('No upgraded proof available',true);return;}
-  // Rebuild complete .ots: magic + ver + sha256-tag + hash + upgraded calendar response
-  const hash=verifyHash||currentHash;
-  if(!hash){toast('Hash not available',true);return;}
-  const magic=new Uint8Array([0x00,0x4f,0x70,0x65,0x6e,0x54,0x69,0x6d,0x65,0x73,0x74,0x61,0x6d,0x70,0x73,0x00,0x00,0x50,0x72,0x6f,0x6f,0x66,0x00,0xbf,0x89,0xe2,0xe8,0x84,0xe8,0x92,0x94]);
-  const hb=hexToBytes(hash);
-  const upgraded=concat([magic,new Uint8Array([0x01,0x08]),hb,window._upgradedOTSBytes]);
-  dlBlob(new Blob([upgraded],{type:'application/octet-stream'}),proofBase+'.upgraded.ots');
+  // _upgradedOTSBytes is the complete serialized .ots from the OTS library
+  dlBlob(new Blob([window._upgradedOTSBytes],{type:'application/octet-stream'}),
+    (proofBase||'content')+'.upgraded.ots');
   toast('Upgraded proof downloaded');
 }
 
-function downloadVerifyMetaJSON(blockHeight, calendar, hash, proofName) {
+function downloadVerifyMetaJSON(blockHeight, calendar, hash, proofName, blockTimestamp) {
   const meta={
     tool:'Cypher Keep',version:'0.2.5',phase:2,
     sha256:hash,
     ots_file:proofName||null,
     calendar:calendar||null,
     bitcoin_block:blockHeight||null,
+    bitcoin_block_time:blockTimestamp?new Date(blockTimestamp*1000).toISOString():null,
     status:'confirmed',
     nostr_event_id:window._lastNostrEventId||null,
+    nostr_nevent:window._lastNostrNevent||null,
     nostr_relays:window._lastNostrRelays||null,
     arweave_id:null
   };
@@ -3038,10 +3068,19 @@ function toggleStampMeta(dropId, btn) {
 
 // ── MY STAMPS — verify button ──
 function verifyFromStamp(hash) {
-  // Switch to verify tab, set hash mode, fill in hash
   switchView('verify');
   setVerifyTab('stamp');
   setVerifyMode('hash');
+  // Clear all previous verification state
+  verifyOTS=null;
+  verifyOTSName=null;
+  verifyHash=null;
+  window._upgradedOTSBytes=null;
+  const resultEl=document.getElementById('verify-result');
+  if(resultEl){resultEl.innerHTML='';resultEl.classList.remove('show');}
+  const otsChip=document.getElementById('ots-chip');
+  if(otsChip) otsChip.classList.remove('show');
+  // Fill hash
   document.getElementById('v-hash-input').value=hash;
   checkVerifyReady();
   toast('Hash loaded — drop your .ots proof file to verify');
@@ -3063,6 +3102,7 @@ async function checkStampConfirmation() {
       const bh=attestation.blockHeight;
       const explorerUrl=bh?`https://mempool.space/block-height/${bh}`:'https://mempool.space';
       window._stampConfirmedBlock=bh;
+      window._stampConfirmedBlockTime=attestation.blockTimestamp||null;
       window._stampOTSName=(currentFile?currentFile.name:'content');
       resultEl.innerHTML=`
         <div style="display:flex;align-items:center;gap:8px;padding:10px 0">
@@ -3124,8 +3164,10 @@ function downloadStampConfirmedMetaJSON() {
     ots_file:otsFilename||null,
     calendar:window._calendarUsed||null,
     bitcoin_block:bh||null,
+    bitcoin_block_time:window._stampConfirmedBlockTime?new Date(window._stampConfirmedBlockTime*1000).toISOString():null,
     status:bh?'confirmed':'pending',
     nostr_event_id:window._lastNostrEventId||null,
+    nostr_nevent:window._lastNostrNevent||null,
     nostr_relays:window._lastNostrRelays||null,
     arweave_id:null
   };
@@ -3200,27 +3242,56 @@ async function findNostrEventByHash(hash) {
   }
   return null;
 }
-async function announceConfirmation(blockHeight) {
+// ── NOSTR CONFIRM ANNOUNCEMENT ──
+function buildConfirmContent(hash, calendar, proofName, blockHeight, blockTimestamp, note) {
+  const blockStr=blockHeight?`#${blockHeight}`:'a Bitcoin block';
+  const explorerUrl=blockHeight?`https://mempool.space/block-height/${blockHeight}`:'https://mempool.space';
+  const minedStr=blockTimestamp?new Date(blockTimestamp*1000).toUTCString():'unknown';
+  const fname=proofName?proofName.replace(/\.ots$/,''):(currentFile?currentFile.name:'(unknown)');
+  const lines=[
+    '✅ Cypher Keep — Timestamp CONFIRMED',
+    '',
+    `This stamp has been committed to Bitcoin block ${blockStr}.`,
+    explorerUrl,
+    '',
+    `File: ${fname}`,
+    `SHA-256: ${hash}`,
+    `Stamped: ${stampedAt||'(unknown)'}`,
+    `Mined:   ${minedStr}`,
+    `Calendar: ${calendar||'OpenTimestamps'}`,
+    `Status: CONFIRMED`,
+    `OTS Proof: ${proofName||(verifyOTSName||'')}`,
+    '',
+    `Verify: https://keithmeola.github.io/cypher-keep/`
+  ];
+  if(note&&note.trim()) lines.push('', note.trim());
+  return lines.join('\n');
+}
+
+function updateConfirmPreview(hash, calendar, proofName, blockHeight, blockTimestamp) {
+  const el=document.getElementById('confirm-nostr-preview');
+  if(!el) return;
+  const note=document.getElementById('confirm-note-input')?document.getElementById('confirm-note-input').value:'';
+  el.textContent=buildConfirmContent(hash, calendar, proofName, blockHeight, blockTimestamp, note);
+}
+
+async function announceConfirmation(blockHeight, blockTimestamp) {
   if(!nostrPubkey) return;
   const btn=document.getElementById('announce-confirm-btn');
   btn.disabled=true;
   btn.textContent='Publishing…';
 
-  // Get reply target — either from session or manual input
   let replyId=window._lastNostrEventId;
   if(!replyId) {
     const input=document.getElementById('confirm-nevent-input');
     if(input&&input.value.trim()) {
       const raw=input.value.trim();
-      // Accept hex event ID or nevent1...
       if(/^[0-9a-f]{64}$/.test(raw)) {
         replyId=raw;
       } else if(raw.startsWith('nevent1')) {
-        // Decode nevent — extract 32-byte event ID from TLV
         try {
           const decoded=bech32Decode(raw);
           if(decoded&&decoded.length>=35) {
-            // TLV: type(1)+len(1)+id(32) = skip first 2 bytes
             replyId=Array.from(decoded.slice(2,34)).map(b=>b.toString(16).padStart(2,'0')).join('');
           }
         } catch(_){}
@@ -3235,10 +3306,13 @@ async function announceConfirmation(blockHeight) {
     return;
   }
 
-  const blockStr=blockHeight?`#${blockHeight}`:'a Bitcoin block';
-  const explorerUrl=blockHeight?`https://mempool.space/block-height/${blockHeight}`:'https://mempool.space';
+  const hash=verifyHash||currentHash||'';
+  const calendar=(window._calendarUsed||'opentimestamps.org').replace('https://','').replace(/\/$/,'');
+  const proofName=verifyOTSName||otsFilename||'';
+  const note=document.getElementById('confirm-note-input')?document.getElementById('confirm-note-input').value.trim():'';
+  const content=buildConfirmContent(hash, calendar, proofName, blockHeight, blockTimestamp, note);
+
   try {
-    const content=`✅ Bitcoin timestamp CONFIRMED\n\nThis stamp has been committed to Bitcoin block ${blockStr}.\n${explorerUrl}\n\nHash: ${verifyHash||''}\nProof: ${verifyOTSName||''}\n\nVerify: https://keithmeola.github.io/cypher-keep/\n\n🔑💾 Cypher Keep — Content Authentication`;
     const event={
       kind:1,
       created_at:Math.floor(Date.now()/1000),
@@ -3248,7 +3322,7 @@ async function announceConfirmation(blockHeight) {
         ['t','cypherkeep'],
         ['t','timestamp'],
         ['t','bitcoin'],
-        ['sha256',verifyHash||'']
+        ['sha256',hash]
       ],
       content,
       pubkey:nostrPubkey
@@ -3260,7 +3334,7 @@ async function announceConfirmation(blockHeight) {
     const ok=results.filter(r=>r.ok).length;
     btn.textContent=`Published to ${ok}/${results.length} relays ✓`;
     toast('Confirmation announced on Nostr ✓');
-  } catch(e){
+  } catch(e) {
     btn.disabled=false;
     btn.textContent='Announce confirmation on Nostr';
     toast('Failed: '+e.message,true);
@@ -4012,7 +4086,7 @@ async function loadStamps() {
         </div>
         <div class="stamp-item-actions">
           <button class="stamp-expand-btn" title="Show metadata" onclick="toggleStampMeta('${dropId}',this)">▼</button>
-          <button class="btn-nostr-link" onclick="verifyFromStamp('${escHtml(hash)}')" style="background:none;border:1px solid var(--border);color:var(--text-secondary)">Verify</button>
+          <button class="btn-nostr-link" onclick="verifyFromStamp('${escHtml(hash)}')" style="color:#60a5fa;border-color:rgba(59,130,246,0.3);background:rgba(59,130,246,0.08)">Verify</button>
           <a class="btn-nostr-link" href="${njumpUrl}" target="_blank" rel="noopener">View ↗</a>
         </div>
         <div class="stamp-meta-dropdown" id="${dropId}">${metaLines}</div>`;
