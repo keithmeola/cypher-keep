@@ -1548,6 +1548,7 @@ footer {
         <button class="nav-btn" id="nav-verify" onclick="switchView('verify')">Verify</button>
         <button class="nav-btn" id="nav-encrypt" onclick="switchView('encrypt')">Encrypt</button>
         <button class="nav-btn" id="nav-nostr" onclick="switchView('nostr')" style="display:none">My Stamps</button>
+        <button class="nav-btn" id="nav-howto" onclick="switchView('howto')">How To</button>
       </nav>
 
       <div style="display:flex;align-items:center;gap:10px">
@@ -2328,6 +2329,197 @@ footer {
 </div>
 </div>
 
+<!-- ══════════════════════════ HOW TO ══════════════════════════ -->
+<div class="view" id="view-howto">
+<div class="container">
+
+  <div class="page-header">
+    <h1>How to use Cypher Keep</h1>
+    <p>Archive. Verify. Encrypt. All without trust.</p>
+  </div>
+
+  <!-- WHY -->
+  <div class="step-label">
+    <div class="step-title">Why this exists</div>
+  </div>
+  <div class="card" style="margin-bottom:28px">
+    <div class="card-body">
+      <p style="font-size:15px;color:var(--text-secondary);line-height:1.85;margin-bottom:14px">
+        We live in a time when outright lying and gaslighting by institutions and governments has become the norm. The ability to prove that information existed before a certain point in time — and that it has not been altered — has never been more necessary. At the same time, surveillance is expanding and privacy is eroding. Cryptography is the answer to both problems, but the tools have historically required technical expertise most people don't have.
+      </p>
+      <p style="font-size:15px;color:var(--text-secondary);line-height:1.85;margin-bottom:14px">
+        Cypher Keep was built to change that. It is a timestamping, verification, and encryption tool designed for the average person — free, open source, and built on cypherpunk values. It runs entirely in your browser. Nothing you hash or encrypt is ever transmitted anywhere. The tool can be downloaded and run locally with no internet connection required for encryption and verification.
+      </p>
+      <p style="font-size:15px;color:var(--text-secondary);line-height:1.85">
+        The underlying principle: <strong style="color:var(--text-primary)">don't trust — verify.</strong> Trust is necessary in society, but it should never be the only option. CK gives you the option to verify.
+      </p>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- HOW STAMPING WORKS -->
+  <div class="step-label">
+    <div class="step-title">How timestamping works</div>
+  </div>
+
+  <div class="card" style="margin-bottom:14px">
+    <div class="card-body">
+      <div class="panel-title" style="margin-bottom:8px;font-size:14px;color:var(--text-primary)">The hash</div>
+      <p style="font-size:14px;color:var(--text-secondary);line-height:1.8">
+        When you stamp a file, CK computes its SHA-256 hash — a unique 64-character fingerprint of that exact content. Change a single byte and the hash is completely different. The hash, not the file, is what gets submitted. Your content never leaves your device.
+      </p>
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom:14px">
+    <div class="card-body">
+      <div class="panel-title" style="margin-bottom:8px;font-size:14px;color:var(--text-primary)">The proof</div>
+      <p style="font-size:14px;color:var(--text-secondary);line-height:1.8">
+        The hash is submitted to <a href="https://opentimestamps.org" target="_blank" rel="noopener" style="color:var(--purple-lt)">OpenTimestamps</a>, which aggregates it with thousands of other hashes and commits the result to the Bitcoin blockchain. You receive an <code style="font-family:var(--font-mono);font-size:12px;color:var(--purple-lt);background:var(--bg-input);padding:1px 5px;border-radius:3px">.ots</code> proof file — a tamper-evident receipt that mathematically links your content's hash to a specific Bitcoin block. Anyone with the original file and proof can verify the timestamp independently, without trusting CK or anyone else.
+      </p>
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom:28px">
+    <div class="card-body">
+      <div class="panel-title" style="margin-bottom:8px;font-size:14px;color:var(--text-primary)">Pending vs. confirmed</div>
+      <p style="font-size:14px;color:var(--text-secondary);line-height:1.8;margin-bottom:10px">
+        When you first stamp, the proof is <em>pending</em> — the Bitcoin block hasn't been mined yet. This takes 1–2 hours. Once the block is mined, the proof can be <em>upgraded</em>: the full cryptographic path to the Bitcoin block header is added, making the proof self-contained and independently verifiable forever — no calendar server required.
+      </p>
+      <p style="font-size:14px;color:var(--text-secondary);line-height:1.8">
+        <strong style="color:var(--text-primary)">Keep your original file and upgraded <code style="font-family:var(--font-mono);font-size:12px;color:var(--purple-lt);background:var(--bg-input);padding:1px 5px;border-radius:3px">.ots</code> proof together permanently.</strong> Without both, the timestamp cannot be verified.
+      </p>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- THREE JOURNEYS -->
+  <div class="step-label">
+    <div class="step-title">Common workflows</div>
+  </div>
+
+  <!-- Creator -->
+  <div class="card" style="margin-bottom:12px">
+    <div class="card-body">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+        <span style="font-size:11px;font-weight:600;letter-spacing:0.07em;text-transform:uppercase;color:var(--purple-lt);border:1px solid var(--purple-border);border-radius:4px;padding:2px 8px">Creator</span>
+        <span style="font-size:15px;font-weight:600;color:var(--text-primary)">Proving authorship</span>
+      </div>
+      <p style="font-size:14px;color:var(--text-secondary);line-height:1.8;margin-bottom:12px">You've created original work — writing, photography, code, research. You want to establish that you created it before anyone else can claim it.</p>
+      <ol style="font-size:14px;color:var(--text-secondary);line-height:2;padding-left:18px;margin:0">
+        <li>Go to <strong style="color:var(--text-primary)">Stamp</strong> → drop your file or paste its SHA-256 hash</li>
+        <li>Click <strong style="color:var(--text-primary)">Stamp with OpenTimestamps</strong> → download the <code style="font-family:var(--font-mono);font-size:12px;color:var(--purple-lt);background:var(--bg-input);padding:1px 5px;border-radius:3px">.ots</code> proof immediately</li>
+        <li>Optionally post to Nostr — a public record of the hash linked to your identity</li>
+        <li>Return after 1–2 hours → check confirmation → download the upgraded proof</li>
+      </ol>
+    </div>
+  </div>
+
+  <!-- Witness -->
+  <div class="card" style="margin-bottom:12px">
+    <div class="card-body">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+        <span style="font-size:11px;font-weight:600;letter-spacing:0.07em;text-transform:uppercase;color:#f7931a;border:1px solid rgba(247,147,26,0.3);border-radius:4px;padding:2px 8px">Witness</span>
+        <span style="font-size:15px;font-weight:600;color:var(--text-primary)">Preserving evidence</span>
+      </div>
+      <p style="font-size:14px;color:var(--text-secondary);line-height:1.8;margin-bottom:12px">You've received or captured something — a document, screenshot, recording — that may need to be proven unaltered at a specific moment. Stamp it immediately. The timestamp is only as valuable as it is contemporaneous.</p>
+      <ol style="font-size:14px;color:var(--text-secondary);line-height:2;padding-left:18px;margin:0">
+        <li>Stamp the file immediately upon receipt or capture</li>
+        <li>Store the original, the <code style="font-family:var(--font-mono);font-size:12px;color:var(--purple-lt);background:var(--bg-input);padding:1px 5px;border-radius:3px">.ots</code> proof, and metadata JSON in at least two separate locations</li>
+        <li>After confirmation, download the upgraded proof — the Bitcoin block timestamp now anchors the content to a moment no one can rewrite</li>
+      </ol>
+    </div>
+  </div>
+
+  <!-- Sender -->
+  <div class="card" style="margin-bottom:28px">
+    <div class="card-body">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+        <span style="font-size:11px;font-weight:600;letter-spacing:0.07em;text-transform:uppercase;color:#60a5fa;border:1px solid rgba(59,130,246,0.3);border-radius:4px;padding:2px 8px">Sender</span>
+        <span style="font-size:15px;font-weight:600;color:var(--text-primary)">Encrypting for one recipient</span>
+      </div>
+      <p style="font-size:14px;color:var(--text-secondary);line-height:1.8;margin-bottom:12px">You need to share sensitive information privately. The recipient needs it; no one else should be able to read it in transit.</p>
+      <ol style="font-size:14px;color:var(--text-secondary);line-height:2;padding-left:18px;margin:0">
+        <li>Go to <strong style="color:var(--text-primary)">Encrypt</strong> → drop the file → set a strong password</li>
+        <li>Share the encrypted <code style="font-family:var(--font-mono);font-size:12px;color:var(--purple-lt);background:var(--bg-input);padding:1px 5px;border-radius:3px">.age</code> file freely — without the password it is unreadable</li>
+        <li>Share the password through a separate channel</li>
+        <li>Recipient opens CK → Encrypt → Decrypt → drops file → enters password → recovers original</li>
+      </ol>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- VERIFYING -->
+  <div class="step-label">
+    <div class="step-title">Verifying a stamp</div>
+  </div>
+
+  <div class="card" style="margin-bottom:28px">
+    <div class="card-body">
+      <p style="font-size:14px;color:var(--text-secondary);line-height:1.8;margin-bottom:14px">
+        The <strong style="color:var(--text-primary)">Verify</strong> tab serves two purposes: confirming your own stamps after Bitcoin block confirmation, and independently verifying someone else's claim.
+      </p>
+      <p style="font-size:14px;color:var(--text-secondary);line-height:1.8;margin-bottom:14px">
+        To verify, you need the original file (or its SHA-256 hash) and the <code style="font-family:var(--font-mono);font-size:12px;color:var(--purple-lt);background:var(--bg-input);padding:1px 5px;border-radius:3px">.ots</code> proof. If you have a metadata JSON or a Nostr confirmation note, switch the proof input to <strong style="color:var(--text-primary)">Paste base64</strong> and paste the <code style="font-family:var(--font-mono);font-size:12px;color:var(--purple-lt);background:var(--bg-input);padding:1px 5px;border-radius:3px">ots_proof_base64</code> field directly — no files needed.
+      </p>
+      <p style="font-size:14px;color:var(--text-secondary);line-height:1.8">
+        A successful result shows <strong style="color:var(--success)">PROOF VERIFIED</strong> (content matches proof) and <strong style="color:var(--success)">BITCOIN CONFIRMED</strong> (proof is anchored to a specific Bitcoin block). The block number links to mempool.space where the transaction can be inspected independently.
+      </p>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- FAQ -->
+  <div class="step-label">
+    <div class="step-title">Common questions</div>
+  </div>
+
+  <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:28px">
+
+    <div class="card">
+      <div class="card-body">
+        <div style="font-size:14px;font-weight:600;color:var(--text-primary);margin-bottom:6px">Does Cypher Keep see my files?</div>
+        <p style="font-size:14px;color:var(--text-secondary);line-height:1.8">No. Everything runs in your browser. Files are hashed locally using the Web Crypto API. The only thing submitted to any external server is the SHA-256 hash — a fingerprint, not the content. Your encrypted files never leave your device.</p>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-body">
+        <div style="font-size:14px;font-weight:600;color:var(--text-primary);margin-bottom:6px">What if opentimestamps.org goes down?</div>
+        <p style="font-size:14px;color:var(--text-secondary);line-height:1.8">Once your proof is upgraded, you no longer need the calendar. The upgraded <code style="font-family:var(--font-mono);font-size:12px;color:var(--purple-lt);background:var(--bg-input);padding:1px 5px;border-radius:3px">.ots</code> contains the full cryptographic path from your hash to the Bitcoin block header and can be verified against any Bitcoin node or block explorer — forever. The calendar is only needed for the initial upgrade.</p>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-body">
+        <div style="font-size:14px;font-weight:600;color:var(--text-primary);margin-bottom:6px">What does Bitcoin have to do with this?</div>
+        <p style="font-size:14px;color:var(--text-secondary);line-height:1.8">Bitcoin's blockchain is immutable and globally distributed. Each block has a precise timestamp, and the proof of work securing it makes retroactive alteration computationally infeasible. By anchoring your hash to a Bitcoin block, the timestamp inherits those guarantees. No institution or government can change when that block was mined or what it contains.</p>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-body">
+        <div style="font-size:14px;font-weight:600;color:var(--text-primary);margin-bottom:6px">Can I timestamp without uploading my file?</div>
+        <p style="font-size:14px;color:var(--text-secondary);line-height:1.8">Yes. In the Stamp tab, switch to <strong style="color:var(--text-primary)">Enter hash</strong> mode and paste a SHA-256 hash you computed yourself. The file never touches CK at all. You can compute the hash with <code style="font-family:var(--font-mono);font-size:12px;color:var(--purple-lt);background:var(--bg-input);padding:1px 5px;border-radius:3px">sha256sum filename</code> on Linux/macOS or any trusted local tool.</p>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-body">
+        <div style="font-size:14px;font-weight:600;color:var(--text-primary);margin-bottom:6px">Can I verify the tool itself hasn't been tampered with?</div>
+        <p style="font-size:14px;color:var(--text-secondary);line-height:1.8">Yes. The footer displays the SHA-256 hash of the <code style="font-family:var(--font-mono);font-size:12px;color:var(--purple-lt);background:var(--bg-input);padding:1px 5px;border-radius:3px">index.html</code> currently running in your browser. Compare it to the hash published in the <a href="https://github.com/keithmeola/cypher-keep/releases" target="_blank" rel="noopener" style="color:var(--purple-lt)">GitHub releases</a>, or download the file and run <code style="font-family:var(--font-mono);font-size:12px;color:var(--purple-lt);background:var(--bg-input);padding:1px 5px;border-radius:3px">sha256sum index.html</code> yourself. CK is open source — every line is readable before you run it.</p>
+      </div>
+    </div>
+
+  </div>
+
+</div>
+</div>
+
 <!-- Nostr login method modal -->
 <div class="nostr-login-modal" id="nostr-login-modal">
   <div class="nostr-login-box">
@@ -2373,7 +2565,10 @@ footer {
         SHA-256 via Web Crypto API ·
         <a href="https://opentimestamps.org" target="_blank" rel="noopener">OpenTimestamps</a>
         · All computation is local. Nothing leaves your browser.<br>
-        Built by <a href="https://njump.me/npub1ygzsm5m9ndtgch9n22cwsx2clwvxhk2pqvdfp36t5lmdyjqvz84qkca2m5" target="_blank" rel="noopener">Keith Meola</a> · <a href="lightning:keith@getalby.com" title="Value-for-Value via Lightning">⚡ Value-for-Value</a>
+        Built by <a href="https://njump.me/npub1ygzsm5m9ndtgch9n22cwsx2clwvxhk2pqvdfp36t5lmdyjqvz84qkca2m5" target="_blank" rel="noopener">Keith Meola</a> · <a href="lightning:keith@getalby.com" title="Value-for-Value via Lightning">⚡ Value-for-Value</a> · <a href="https://www.activism.net/cypherpunk/manifesto.html" target="_blank" rel="noopener">A Cypherpunk's Manifesto</a><br>
+        <span style="font-family:var(--font-mono);font-size:12px">
+          Page integrity: <span id="self-hash-display" style="color:var(--text-tertiary)" title="SHA-256 of this index.html — compare to the published hash on GitHub">computing…</span>
+        </span>
       </div>
       <div class="footer-tags">
         <span class="tag">SHA-256</span>
@@ -2792,7 +2987,15 @@ function setOTSMode(mode) {
   verifyOTS=null;
   verifyOTSName=null;
   document.getElementById('ots-chip').classList.remove('show');
-  checkVerifyReady();
+  if(mode==='base64') {
+    // If textarea already has content (stale from previous session), re-decode it
+    loadOTSFromBase64();
+  } else {
+    // Switching to file mode — clear the textarea so it doesn't cause confusion
+    const b64input=document.getElementById('ots-b64-input');
+    if(b64input) b64input.value='';
+    checkVerifyReady();
+  }
 }
 
 function loadOTSFromBase64() {
@@ -4409,10 +4612,30 @@ document.addEventListener('DOMContentLoaded', () => {
   if(window.nostr && typeof window.nostr.getPublicKey === 'function') {
     window.nostr.getPublicKey().then(pk => {
       if(pk) nostrConnected(pk, 'extension', null);
-    }).catch(() => {
-      // Extension present but not approved or no stored permission — don't prompt
-    });
+    }).catch(() => {});
   }
+
+  // Self-hash: fetch this page and compute its SHA-256 for integrity verification
+  const el=document.getElementById('self-hash-display');
+  if(!el) return;
+
+  if(location.protocol === 'file:') {
+    // Can't fetch file:// — guide user to do it manually
+    el.innerHTML=`<span style="color:var(--text-disabled)">Running locally — verify with <code style="font-family:var(--font-mono)">sha256sum index.html</code> and compare to the <a href="https://github.com/keithmeola/cypher-keep/releases" target="_blank" rel="noopener" style="color:var(--text-tertiary)">published hash ↗</a></span>`;
+    return;
+  }
+
+  fetch(location.href, {cache:'no-store'})
+    .then(r=>r.arrayBuffer())
+    .then(buf=>crypto.subtle.digest('SHA-256',buf))
+    .then(dig=>{
+      const hex=Array.from(new Uint8Array(dig)).map(b=>b.toString(16).padStart(2,'0')).join('');
+      const short=hex.substring(0,16)+'…'+hex.substring(48);
+      el.innerHTML=`<span title="${hex}" style="cursor:pointer" onclick="navigator.clipboard.writeText('${hex}').then(()=>toast('Page hash copied'))">${short}</span> · <a href="https://github.com/keithmeola/cypher-keep/releases" target="_blank" rel="noopener" style="color:var(--text-tertiary)">compare ↗</a>`;
+    })
+    .catch(()=>{
+      el.textContent='(could not compute)';
+    });
 });
 </script>
 </body>
