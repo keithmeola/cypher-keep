@@ -4037,115 +4037,97 @@ function parseBunkerString(str) {
   const qIdx=rest.indexOf('?');
   const remotePubkey=qIdx>=0?rest.slice(0,qIdx):rest;
   const params=qIdx>=0?new URLSearchParams(rest.slice(qIdx+1)):new URLSearchParams();
-  const relay=params.get('relay');
+  const relays=params.getAll('relay').filter(Boolean);
   const secret=params.get('secret')||'';
   if(!remotePubkey) throw new Error('Missing remote pubkey');
-  if(!relay) throw new Error('Missing relay parameter');
-  return {remotePubkey, relay, secret};
+  if(!relays.length) throw new Error('Missing relay parameter');
+  return {remotePubkey, relays, secret};
 }
 
-async function nip46Connect({remotePubkey, relay, secret}) {
+async function nip46Connect({remotePubkey, relays, secret}) {
+  const secp = window.nobleSecp256k1;
+
+  // Generate ephemeral local keypair
+  const localPrivKey = secp.utils.randomPrivateKey();
+  const pubRaw = secp.getPublicKey(localPrivKey, false); // 65 bytes uncompressed
+  const localPubkeyHex = Array.from(pubRaw.slice(1,33)).map(b=>b.toString(16).padStart(2,'0')).join('');
+
+  const reqId = 'ck-' + Math.random().toString(36).substring(2,10);
+
   return new Promise((resolve, reject) => {
-    // Generate ephemeral local keypair for this session
-    const secp = window.nobleSecp256k1;
-    const localPrivKey = secp.utils.randomPrivateKey(); // Uint8Array 32 bytes
-    const localPubKeyBytes = secp.getPublicKey(localPrivKey, true); // 33 bytes compressed
-    // x-only pubkey (32 bytes) for Nostr
-    const localPubkeyHex = Array.from(secp.getPublicKey(localPrivKey, false)).slice(1,33).map(b=>b.toString(16).padStart(2,'0')).join('').slice(0,64);
-    // Actually we need the x-only: getPublicKey returns 65 bytes uncompressed, first byte is 04
-    // x-only = bytes 1-32
-    const pubRaw = secp.getPublicKey(localPrivKey, false); // 65 bytes
-    const localPubkeyHexFinal = Array.from(pubRaw.slice(1,33)).map(b=>b.toString(16).padStart(2,'0')).join('');
+    let resolved = false;
+    const connections = [];
+    const timeout = setTimeout(() => {
+      connections.forEach(ws => { try { ws.close(); } catch(_){} });
+      if(!resolved) reject(new Error('Connection timed out. Is Amber open and unlocked on your phone?'));
+    }, 45000);
 
-    const reqId='ck-'+Math.random().toString(36).substring(2,10);
-    let ws;
-    const timeout=setTimeout(()=>{
-      ws&&ws.close();
-      reject(new Error('Connection timed out. Is your bunker running and reachable?'));
-    }, 30000);
-
-    try {
-      ws=new WebSocket(relay);
-    } catch(e) {
+    function onSuccess(pk, relay, ws) {
+      if(resolved) return;
+      resolved = true;
       clearTimeout(timeout);
-      reject(new Error('Could not connect to relay: '+relay));
-      return;
+      connections.forEach(w => { if(w !== ws) { try { w.close(); } catch(_){} } });
+      bunkerSigner = {remotePubkey, relay, relays, secret, ws: null, localPrivKey, localPubkeyHex};
+      resolve(pk);
     }
 
-    ws.onopen=()=>{
-      const subId='ck-sub-'+Math.random().toString(36).substring(2,6);
-      ws.send(JSON.stringify(['REQ', subId, {kinds:[24133], '#p':[localPubkeyHexFinal], limit:10}]));
-      // Also subscribe for responses from the bunker
-      ws.send(JSON.stringify(['REQ', subId+'-ack', {kinds:[24133], authors:[remotePubkey], limit:5}]));
-    };
+    for(const relay of relays) {
+      let ws;
+      try { ws = new WebSocket(relay); } catch(e) { continue; }
+      connections.push(ws);
 
-    ws.onmessage=async e=>{
-      try {
-        const d=JSON.parse(e.data);
-        if(!Array.isArray(d)||d[0]!=='EVENT') return;
-        const ev=d[2];
-        if(!ev||ev.kind!==24133) return;
-
-        // Decrypt NIP-04 content from bunker
-        let content;
+      ws.onopen = async () => {
+        if(resolved) { ws.close(); return; }
+        const subId = 'ck-sub-' + Math.random().toString(36).substring(2,6);
+        ws.send(JSON.stringify(['REQ', subId, {kinds:[24133], '#p':[localPubkeyHex], authors:[remotePubkey], limit:10}]));
+        await sleep(200);
+        if(resolved) { ws.close(); return; }
+        const connectPayload = JSON.stringify({id: reqId, method: 'connect', params: [localPubkeyHex, secret, 'sign_event']});
         try {
-          content = JSON.parse(ev.content);
+          const encrypted = await nip04Encrypt(localPrivKey, remotePubkey, connectPayload);
+          const event = await buildAndSignLocalEvent(localPrivKey, localPubkeyHex, remotePubkey, encrypted);
+          ws.send(JSON.stringify(['EVENT', event]));
         } catch(_) {
-          // Try NIP-04 decrypt
-          try {
-            const plaintext = await nip04Decrypt(localPrivKey, remotePubkey, ev.content);
-            content = JSON.parse(plaintext);
-          } catch(_) {
-            return;
-          }
+          const event = {kind:24133, created_at:Math.floor(Date.now()/1000), tags:[['p',remotePubkey]], content:connectPayload, pubkey:localPubkeyHex, id:'', sig:''};
+          ws.send(JSON.stringify(['EVENT', event]));
         }
+      };
 
-        if(content && content.result && /^[0-9a-f]{64}$/.test(content.result)) {
-          // Got pubkey directly
-          clearTimeout(timeout);
-          ws.close();
-          bunkerSigner = {remotePubkey, relay, secret, ws: null, localPrivKey, localPubkeyHex: localPubkeyHexFinal};
-          resolve(content.result);
-        } else if(content && (content.result === 'ack' || content.result === 'auth_url')) {
-          // Send get_public_key request
-          const reqPayload = JSON.stringify({id: reqId+'-pk', method: 'get_public_key', params: []});
+      ws.onmessage = async e => {
+        if(resolved) return;
+        try {
+          const d = JSON.parse(e.data);
+          if(!Array.isArray(d) || d[0] !== 'EVENT') return;
+          const ev = d[2];
+          if(!ev || ev.kind !== 24133) return;
+          let content;
           try {
-            const encrypted = await nip04Encrypt(localPrivKey, remotePubkey, reqPayload);
-            const event = await buildAndSignLocalEvent(localPrivKey, localPubkeyHexFinal, remotePubkey, encrypted);
-            ws.send(JSON.stringify(['EVENT', event]));
+            const plain = await nip04Decrypt(localPrivKey, remotePubkey, ev.content);
+            content = JSON.parse(plain);
           } catch(_) {
-            // Fallback unencrypted
-            const event = {kind:24133, created_at:Math.floor(Date.now()/1000), tags:[['p',remotePubkey]], content:reqPayload, pubkey:localPubkeyHexFinal, id:'', sig:''};
-            ws.send(JSON.stringify(['EVENT', event]));
+            try { content = JSON.parse(ev.content); } catch(_) { return; }
           }
-        } else if(content && content.result) {
-          // Some other positive result — may contain pubkey in different format
-          if(/^[0-9a-f]{64}$/.test(String(content.result))) {
-            clearTimeout(timeout);
-            ws.close();
-            bunkerSigner = {remotePubkey, relay, secret, ws: null, localPrivKey, localPubkeyHex: localPubkeyHexFinal};
-            resolve(String(content.result));
+          if(!content) return;
+          if(content.result && /^[0-9a-f]{64}$/.test(content.result)) {
+            onSuccess(content.result, relay, ws);
+          } else if(content.result === 'ack') {
+            const pkPayload = JSON.stringify({id: reqId+'-pk', method: 'get_public_key', params: []});
+            try {
+              const encrypted = await nip04Encrypt(localPrivKey, remotePubkey, pkPayload);
+              const event = await buildAndSignLocalEvent(localPrivKey, localPubkeyHex, remotePubkey, encrypted);
+              ws.send(JSON.stringify(['EVENT', event]));
+            } catch(_) {}
           }
-        }
-      } catch(_){}
-    };
+        } catch(_){}
+      };
 
-    ws.onerror=()=>{clearTimeout(timeout);reject(new Error('WebSocket error connecting to '+relay));};
+      ws.onerror = () => {};
+    }
 
-    // Send initial connect request after a short delay to let subscription go through
-    setTimeout(async ()=>{
-      if(ws.readyState !== WebSocket.OPEN) return;
-      const connectPayload = JSON.stringify({id: reqId, method: 'connect', params: [localPubkeyHexFinal, secret, 'sign_event']});
-      try {
-        const encrypted = await nip04Encrypt(localPrivKey, remotePubkey, connectPayload);
-        const event = await buildAndSignLocalEvent(localPrivKey, localPubkeyHexFinal, remotePubkey, encrypted);
-        ws.send(JSON.stringify(['EVENT', event]));
-      } catch(_) {
-        // Fallback: send plaintext connect (some bunkers accept this for initial auth)
-        const event = {kind:24133, created_at:Math.floor(Date.now()/1000), tags:[['p',remotePubkey]], content:connectPayload, pubkey:localPubkeyHexFinal, id:'', sig:''};
-        ws.send(JSON.stringify(['EVENT', event]));
-      }
-    }, 300);
+    if(connections.length === 0) {
+      clearTimeout(timeout);
+      reject(new Error('Could not connect to any relay in the bunker string'));
+    }
   });
 }
 
@@ -4210,7 +4192,9 @@ async function signEvent(event) {
 
 // Sign via NIP-46 bunker — send encrypted sign_event request, wait for signed event back
 async function bunkerSignEvent(event) {
-  const {remotePubkey, relay, localPrivKey, localPubkeyHex} = bunkerSigner;
+  const {remotePubkey, relay, relays, localPrivKey, localPubkeyHex} = bunkerSigner;
+  const signingRelay = relay || (relays && relays[0]);
+  if(!signingRelay) throw new Error('No relay available for signing');
   if(!localPrivKey) throw new Error('Bunker session missing keypair — please reconnect');
 
   return new Promise(async (resolve, reject) => {
@@ -4221,7 +4205,7 @@ async function bunkerSignEvent(event) {
     }, 30000);
 
     let ws;
-    try { ws = new WebSocket(relay); }
+    try { ws = new WebSocket(signingRelay); }
     catch(e) { clearTimeout(timeout); reject(new Error('Could not connect to relay for signing')); return; }
 
     ws.onopen = async () => {
