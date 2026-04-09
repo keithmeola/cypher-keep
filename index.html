@@ -224,13 +224,11 @@ nav { display: flex; gap: 2px; }
 }
 
 .step-title {
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 600;
-  color: var(--text-secondary);
-  letter-spacing: 0.01em;
+  color: var(--text-primary);
+  letter-spacing: 0.04em;
   text-transform: uppercase;
-  font-size: 13px;
-  letter-spacing: 0.08em;
 }
 
 /* ── CARDS ── */
@@ -2478,6 +2476,9 @@ function resetStampUI() {
   document.getElementById('stamp-next').style.display='none';
   document.getElementById('prog-bar').style.width='0%';
   document.getElementById('nostr-post-section').style.display='none';
+  // Clear note field so it doesn't persist between stamps
+  const noteEl=document.getElementById('note-input');
+  if(noteEl) noteEl.value='';
 }
 
 // ── MANUAL HASH ──
@@ -2612,13 +2613,19 @@ function downloadOTS() {
 function downloadMetaJSON() {
   if(!currentHash)return;
   const cal=window._calendarUsed||'OpenTimestamps';
+  const otsB64=otsBytes?uint8ToBase64(otsBytes):null;
   const meta={tool:'Cypher Keep',version:'0.2.5',phase:2,
     file:currentFile?{name:currentFile.name,size:currentFile.size,type:currentFile.type||'unknown'}:null,
     sha256:currentHash,timestamp:stampedAt||new Date().toISOString(),
     ots_file:otsFilename||null,
+    ots_proof_base64:otsB64,
     calendar:cal,
+    bitcoin_block:null,
+    bitcoin_block_time:null,
+    status:'pending',
     note:document.getElementById('note-input').value.trim()||null,
     nostr_event_id:window._lastNostrEventId||null,
+    nostr_nevent:window._lastNostrNevent||null,
     nostr_relays:window._lastNostrRelays||null,
     arweave_id:null};
   dlBlob(new Blob([JSON.stringify(meta,null,2)],{type:'application/json'}),
@@ -2812,18 +2819,14 @@ async function doVerify() {
   const attestation=await checkCalendarConfirmation(hash, calUrl);
   if(attestation && attestation.confirmed){
     el.innerHTML=confirmedHTML(hash, verifyOTSName, attestation, calUrl||'opentimestamps.org');
-      toast('BITCOIN CONFIRMED ✓');
-      // Auto-find the original Nostr event by sha256 tag if connected
-      if(nostrPubkey && !window._lastNostrEventId){
-        const found=await findNostrEventByHash(hash);
-        if(found){
-          window._lastNostrEventId=found.id;
-          window._lastNostrNevent=eventIdToNevent(found.id);
-          // Re-render to show the Nostr announce section with the found event
-          el.innerHTML=confirmedHTML(hash, verifyOTSName, attestation, calUrl);
-          toast('BITCOIN CONFIRMED — original Nostr note found ✓');
-        }
-      }
+    toast('BITCOIN CONFIRMED ✓');
+    // Auto-fill nevent and update preview after DOM is ready
+    if(nostrPubkey){
+      const calShort=(calUrl||'opentimestamps.org').replace('https://','').replace(/\/$/,'');
+      autoFillConfirmNevent(hash).then(()=>{
+        updateConfirmPreview(hash, calShort, verifyOTSName||'', attestation.blockHeight, attestation.blockTimestamp);
+      });
+    }
     } else {
       el.innerHTML=okHTML(hash,verifyOTSName)+pendingAttestHTML('Your hash is verified in the proof file but the Bitcoin timestamp is still pending. The calendar has not yet committed to a block. Check back in a few hours.');
     }
@@ -2963,25 +2966,41 @@ function confirmedHTML(hash, proof, attestation, calUrl) {
   const proofBase=proof?proof.replace(/\.ots$/,''):'content';
 
   const nostrSection=nostrPubkey
-    ? `<div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border)">
-        <div style="font-size:13px;font-weight:600;color:var(--text-secondary);margin-bottom:10px">
-          ${window._lastNostrEventId
-            ? 'Reply to your original stamp note with this confirmation:'
-            : 'Have a Nostr stamp note to reply to? Paste the nevent or note ID:'}
+    ? `<div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border);text-align:left">
+        <div style="font-size:13px;font-weight:600;color:var(--text-secondary);margin-bottom:12px">Announce on Nostr</div>
+
+        <!-- nevent input — auto-filled if found, manual otherwise -->
+        <div class="field" style="margin-bottom:10px">
+          <label class="field-label">Original stamp note <span style="font-weight:400;color:var(--text-tertiary)">(nevent1 or event ID)</span></label>
+          <div style="display:flex;gap:8px;align-items:center">
+            <input class="input mono" id="confirm-nevent-input" type="text" placeholder="Searching relays…" style="font-size:12px;flex:1" oninput="updateConfirmPreview('${escHtml(hash)}','${escHtml(calShort)}','${escHtml(proof||'')}',${blockHeight||'null'},${blockTimestamp||'null'})">
+          </div>
         </div>
-        ${!window._lastNostrEventId ? `<div style="display:flex;gap:8px;margin-bottom:10px">
-          <input class="input mono" id="confirm-nevent-input" type="text" placeholder="nevent1... or event ID hex" style="font-size:12px;flex:1">
-        </div>` : ''}
-        <div class="field" style="margin-bottom:12px">
+
+        <!-- Reply checkbox -->
+        <label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-size:14px;color:var(--text-secondary);margin-bottom:12px">
+          <input type="checkbox" id="confirm-reply-check" checked style="accent-color:var(--purple);width:13px;height:13px" onchange="updateConfirmPreview('${escHtml(hash)}','${escHtml(calShort)}','${escHtml(proof||'')}',${blockHeight||'null'},${blockTimestamp||'null'})">
+          Post as reply to original stamp note
+        </label>
+
+        <!-- Optional note + position toggle -->
+        <div class="field" style="margin-bottom:10px">
           <label class="field-label">Add a note <span style="font-weight:400;color:var(--text-tertiary)">(optional)</span></label>
           <textarea class="input" id="confirm-note-input" rows="2" placeholder="Add context to your confirmation announcement…" oninput="updateConfirmPreview('${escHtml(hash)}','${escHtml(calShort)}','${escHtml(proof||'')}',${blockHeight||'null'},${blockTimestamp||'null'})" style="min-height:52px;resize:vertical"></textarea>
         </div>
+        <label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-size:14px;color:var(--text-secondary);margin-bottom:12px">
+          <input type="checkbox" id="confirm-note-top" checked style="accent-color:var(--purple);width:13px;height:13px" onchange="updateConfirmPreview('${escHtml(hash)}','${escHtml(calShort)}','${escHtml(proof||'')}',${blockHeight||'null'},${blockTimestamp||'null'})">
+          Note at top <span style="font-size:13px;color:var(--text-disabled)">(uncheck to move to bottom)</span>
+        </label>
+
+        <!-- Preview -->
         <div class="nostr-preview-header" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
           <span>Preview</span>
           <span style="font-size:12px;font-weight:400;color:var(--text-disabled);text-transform:none;letter-spacing:0">Stamp data is fixed</span>
         </div>
-        <div class="nostr-preview" id="confirm-nostr-preview" style="margin-bottom:12px">${buildConfirmContent(hash,calShort,proof||'',blockHeight,blockTimestamp,'')}</div>
-        <button class="btn btn-secondary" id="announce-confirm-btn" onclick="announceConfirmation(${blockHeight||'null'},${blockTimestamp||'null'})">
+        <div class="nostr-preview" id="confirm-nostr-preview" style="margin-bottom:12px;text-align:left">${buildConfirmContent(hash,calShort,proof||'',blockHeight,blockTimestamp,'',true)}</div>
+
+        <button class="btn btn-primary" id="announce-confirm-btn" onclick="announceConfirmation('${escHtml(hash)}','${escHtml(calShort)}','${escHtml(proof||'')}',${blockHeight||'null'},${blockTimestamp||'null'})">
           Announce confirmation on Nostr
         </button>
       </div>`
@@ -3016,9 +3035,6 @@ function pendingAttestHTML(msg) {
       BITCOIN CONFIRMATION PENDING
     </div>
     <p>${msg}</p>
-    <div class="btn-row" style="margin-top:10px">
-      <a class="btn btn-secondary" href="https://opentimestamps.org" target="_blank" rel="noopener">Check at opentimestamps.org ↗</a>
-    </div>
   </div>`;
 }
 
@@ -3039,10 +3055,12 @@ function downloadUpgradedOTS(proofBase) {
 }
 
 function downloadVerifyMetaJSON(blockHeight, calendar, hash, proofName, blockTimestamp) {
+  const otsB64=window._upgradedOTSBytes?uint8ToBase64(window._upgradedOTSBytes):(verifyOTS?uint8ToBase64(verifyOTS):null);
   const meta={
     tool:'Cypher Keep',version:'0.2.5',phase:2,
     sha256:hash,
     ots_file:proofName||null,
+    ots_proof_base64:otsB64,
     calendar:calendar||null,
     bitcoin_block:blockHeight||null,
     bitcoin_block_time:blockTimestamp?new Date(blockTimestamp*1000).toISOString():null,
@@ -3062,7 +3080,7 @@ function toggleStampMeta(dropId, btn) {
   const el=document.getElementById(dropId);
   if(!el) return;
   const open=el.classList.toggle('open');
-  btn.textContent=open?'▲':'▼';
+  btn.textContent=open?'▲ Details':'▼ Details';
   btn.title=open?'Hide metadata':'Show metadata';
 }
 
@@ -3156,12 +3174,14 @@ function copyConfirmedSummary() {
 function downloadStampConfirmedMetaJSON() {
   if(!currentHash) return;
   const bh=window._stampConfirmedBlock;
+  const otsB64=window._upgradedOTSBytes?uint8ToBase64(window._upgradedOTSBytes):(otsBytes?uint8ToBase64(otsBytes):null);
   const meta={
     tool:'Cypher Keep',version:'0.2.5',phase:2,
     file:currentFile?{name:currentFile.name,size:currentFile.size,type:currentFile.type||'unknown'}:null,
     sha256:currentHash,
     timestamp:stampedAt||new Date().toISOString(),
     ots_file:otsFilename||null,
+    ots_proof_base64:otsB64,
     calendar:window._calendarUsed||null,
     bitcoin_block:bh||null,
     bitcoin_block_time:window._stampConfirmedBlockTime?new Date(window._stampConfirmedBlockTime*1000).toISOString():null,
@@ -3243,90 +3263,129 @@ async function findNostrEventByHash(hash) {
   return null;
 }
 // ── NOSTR CONFIRM ANNOUNCEMENT ──
-function buildConfirmContent(hash, calendar, proofName, blockHeight, blockTimestamp, note) {
+function buildConfirmContent(hash, calendar, proofName, blockHeight, blockTimestamp, note, noteAtTop) {
   const blockStr=blockHeight?`#${blockHeight}`:'a Bitcoin block';
   const explorerUrl=blockHeight?`https://mempool.space/block-height/${blockHeight}`:'https://mempool.space';
   const minedStr=blockTimestamp?new Date(blockTimestamp*1000).toUTCString():'unknown';
   const fname=proofName?proofName.replace(/\.ots$/,''):(currentFile?currentFile.name:'(unknown)');
-  const lines=[
-    '✅ Cypher Keep — Timestamp CONFIRMED',
-    '',
-    `This stamp has been committed to Bitcoin block ${blockStr}.`,
-    explorerUrl,
-    '',
+  // Use upgraded proof bytes as base64 if available, otherwise pending
+  const otsB64=window._upgradedOTSBytes?uint8ToBase64(window._upgradedOTSBytes):'(see .ots file)';
+
+  const stampData=[
     `File: ${fname}`,
     `SHA-256: ${hash}`,
     `Stamped: ${stampedAt||'(unknown)'}`,
     `Mined:   ${minedStr}`,
     `Calendar: ${calendar||'OpenTimestamps'}`,
     `Status: CONFIRMED`,
-    `OTS Proof: ${proofName||(verifyOTSName||'')}`,
+    '',
+    `OTS Proof (confirmed, base64): ${otsB64}`,
     '',
     `Verify: https://keithmeola.github.io/cypher-keep/`
-  ];
-  if(note&&note.trim()) lines.push('', note.trim());
-  return lines.join('\n');
+  ].join('\n');
+
+  const header='✅ Cypher Keep — Timestamp CONFIRMED';
+  const blockLine=`This stamp has been committed to Bitcoin block ${blockStr}.\n${explorerUrl}`;
+
+  const parts=[header,'',blockLine,''];
+  if(note&&note.trim()&&noteAtTop) parts.push(note.trim(),'');
+  parts.push(stampData);
+  if(note&&note.trim()&&!noteAtTop) parts.push('',note.trim());
+
+  return parts.join('\n');
 }
 
 function updateConfirmPreview(hash, calendar, proofName, blockHeight, blockTimestamp) {
   const el=document.getElementById('confirm-nostr-preview');
   if(!el) return;
   const note=document.getElementById('confirm-note-input')?document.getElementById('confirm-note-input').value:'';
-  el.textContent=buildConfirmContent(hash, calendar, proofName, blockHeight, blockTimestamp, note);
+  const noteAtTop=document.getElementById('confirm-note-top')?document.getElementById('confirm-note-top').checked:true;
+  el.textContent=buildConfirmContent(hash, calendar, proofName, blockHeight, blockTimestamp, note, noteAtTop);
 }
 
-async function announceConfirmation(blockHeight, blockTimestamp) {
+// Auto-fill nevent after confirmation panel renders
+async function autoFillConfirmNevent(hash) {
+  const input=document.getElementById('confirm-nevent-input');
+  if(!input||!nostrPubkey||!hash) return;
+  // If we already have it in session use it
+  if(window._lastNostrNevent) {
+    input.value=window._lastNostrNevent;
+    input.placeholder='Found on relays';
+    return;
+  }
+  if(window._lastNostrEventId) {
+    input.value=window._lastNostrEventId;
+    input.placeholder='Found on relays';
+    return;
+  }
+  // Query relays
+  input.placeholder='Searching relays…';
+  try {
+    const found=await findNostrEventByHash(hash);
+    if(found) {
+      window._lastNostrEventId=found.id;
+      window._lastNostrNevent=eventIdToNevent(found.id);
+      input.value=window._lastNostrNevent;
+      input.placeholder='Found on relays';
+    } else {
+      input.placeholder='Not found — paste nevent1 or event ID manually';
+      // Uncheck reply by default if no event found
+      const chk=document.getElementById('confirm-reply-check');
+      if(chk) chk.checked=false;
+    }
+  } catch(_) {
+    input.placeholder='Could not search relays — paste manually';
+    const chk=document.getElementById('confirm-reply-check');
+    if(chk) chk.checked=false;
+  }
+}
+
+async function announceConfirmation(hash, calendar, proofName, blockHeight, blockTimestamp) {
   if(!nostrPubkey) return;
   const btn=document.getElementById('announce-confirm-btn');
   btn.disabled=true;
   btn.textContent='Publishing…';
 
-  let replyId=window._lastNostrEventId;
-  if(!replyId) {
+  const wantReply=document.getElementById('confirm-reply-check')?document.getElementById('confirm-reply-check').checked:false;
+  const note=document.getElementById('confirm-note-input')?document.getElementById('confirm-note-input').value.trim():'';
+  const noteAtTop=document.getElementById('confirm-note-top')?document.getElementById('confirm-note-top').checked:true;
+  const content=buildConfirmContent(hash, calendar, proofName, blockHeight, blockTimestamp, note, noteAtTop);
+
+  // Resolve reply target if needed
+  let replyId=null;
+  if(wantReply) {
     const input=document.getElementById('confirm-nevent-input');
-    if(input&&input.value.trim()) {
-      const raw=input.value.trim();
-      if(/^[0-9a-f]{64}$/.test(raw)) {
-        replyId=raw;
-      } else if(raw.startsWith('nevent1')) {
-        try {
-          const decoded=bech32Decode(raw);
-          if(decoded&&decoded.length>=35) {
-            replyId=Array.from(decoded.slice(2,34)).map(b=>b.toString(16).padStart(2,'0')).join('');
-          }
-        } catch(_){}
-      }
+    const raw=input?input.value.trim():'';
+    if(/^[0-9a-f]{64}$/.test(raw)) {
+      replyId=raw;
+    } else if(raw.startsWith('nevent1')) {
+      try {
+        const decoded=bech32Decode(raw);
+        if(decoded&&decoded.length>=35) {
+          replyId=Array.from(decoded.slice(2,34)).map(b=>b.toString(16).padStart(2,'0')).join('');
+        }
+      } catch(_){}
+    } else if(window._lastNostrEventId) {
+      replyId=window._lastNostrEventId;
+    }
+    if(!replyId) {
+      btn.disabled=false;
+      btn.textContent='Announce confirmation on Nostr';
+      toast('Could not find the original stamp note ID — paste it manually or uncheck Reply',true);
+      return;
     }
   }
 
-  if(!replyId) {
-    btn.disabled=false;
-    btn.textContent='Announce confirmation on Nostr';
-    toast('Paste a note ID or nevent to reply to',true);
-    return;
-  }
-
-  const hash=verifyHash||currentHash||'';
-  const calendar=(window._calendarUsed||'opentimestamps.org').replace('https://','').replace(/\/$/,'');
-  const proofName=verifyOTSName||otsFilename||'';
-  const note=document.getElementById('confirm-note-input')?document.getElementById('confirm-note-input').value.trim():'';
-  const content=buildConfirmContent(hash, calendar, proofName, blockHeight, blockTimestamp, note);
-
   try {
-    const event={
-      kind:1,
-      created_at:Math.floor(Date.now()/1000),
-      tags:[
-        ['e',replyId,'','reply'],
-        ['p',nostrPubkey],
-        ['t','cypherkeep'],
-        ['t','timestamp'],
-        ['t','bitcoin'],
-        ['sha256',hash]
-      ],
-      content,
-      pubkey:nostrPubkey
-    };
+    const tags=[
+      ['t','cypherkeep'],['t','timestamp'],['t','bitcoin'],
+      ['sha256',hash||'']
+    ];
+    if(replyId) {
+      tags.unshift(['e',replyId,'','reply']);
+      tags.push(['p',nostrPubkey]);
+    }
+    const event={kind:1,created_at:Math.floor(Date.now()/1000),tags,content,pubkey:nostrPubkey};
     const signed=await window.nostr.signEvent(event);
     if(!signed||!signed.id) throw new Error('Signing failed');
     const relays=window._lastNostrRelays||getActiveRelays();
@@ -4085,9 +4144,9 @@ async function loadStamps() {
           <div style="margin-top:5px;display:flex;flex-wrap:wrap;gap:6px;align-items:center">${relayDots}</div>
         </div>
         <div class="stamp-item-actions">
-          <button class="stamp-expand-btn" title="Show metadata" onclick="toggleStampMeta('${dropId}',this)">▼</button>
-          <button class="btn-nostr-link" onclick="verifyFromStamp('${escHtml(hash)}')" style="color:#60a5fa;border-color:rgba(59,130,246,0.3);background:rgba(59,130,246,0.08)">Verify</button>
-          <a class="btn-nostr-link" href="${njumpUrl}" target="_blank" rel="noopener">View ↗</a>
+          <button class="stamp-expand-btn" title="Show metadata" onclick="toggleStampMeta('${dropId}',this)">▼ Details</button>
+          <button class="btn-nostr-link" onclick="verifyFromStamp('${escHtml(hash)}')" style="display:inline-flex;align-items:center;color:#60a5fa;border-color:rgba(59,130,246,0.3);background:rgba(59,130,246,0.08)">Verify</button>
+          <a class="btn-nostr-link" href="${njumpUrl}" target="_blank" rel="noopener" style="display:inline-flex;align-items:center">View ↗</a>
         </div>
         <div class="stamp-meta-dropdown" id="${dropId}">${metaLines}</div>`;
       list.appendChild(item);
@@ -4270,6 +4329,18 @@ function sleep(ms){return new Promise(r=>setTimeout(r,ms));}
 function dlBlob(blob,name){const url=URL.createObjectURL(blob);const a=Object.assign(document.createElement('a'),{href:url,download:name});a.click();URL.revokeObjectURL(url);}
 function copyText(text,btnId){if(!text)return;navigator.clipboard.writeText(text).then(()=>{const btn=document.getElementById(btnId);if(!btn)return;const o=btn.textContent;btn.textContent='Copied';btn.classList.add('copied');setTimeout(()=>{btn.textContent=o;btn.classList.remove('copied');},1800);});}
 function toast(msg,isErr=false){const el=document.getElementById('toast');el.textContent=msg;el.className='toast'+(isErr?' err':'');el.classList.add('show');setTimeout(()=>el.classList.remove('show'),3200);}
+
+// ── INIT ──
+document.addEventListener('DOMContentLoaded', () => {
+  // Silently restore Nostr session if extension is available and has already approved this site
+  if(window.nostr && typeof window.nostr.getPublicKey === 'function') {
+    window.nostr.getPublicKey().then(pk => {
+      if(pk) nostrConnected(pk, 'extension', null);
+    }).catch(() => {
+      // Extension present but not approved or no stored permission — don't prompt
+    });
+  }
+});
 </script>
 </body>
 </html>
