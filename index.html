@@ -2767,15 +2767,15 @@ function parseCalendarUrl(ots) {
   outer: for(let i=0;i<ots.length-8;i++){
     for(let j=0;j<8;j++) if(ots[i+j]!==PENDING_TAG[j]) continue outer;
     let pos=i+8;
-    const {val:len, next}=readVarint(ots,pos);
-    pos=next;
-    if(pos+len>ots.length) return null;
-    // Decode and strip any non-printable chars, whitespace, nulls
-    const raw=new TextDecoder().decode(ots.slice(pos,pos+len));
-    const cleaned=raw.replace(/[^\x20-\x7e]/g,'').trim();
-    // Must start with http
-    if(!cleaned.startsWith('http')) return null;
-    return cleaned;
+    const {next:afterLen}=readVarint(ots,pos);
+    pos=afterLen;
+    const slice=ots.slice(pos, Math.min(pos+200, ots.length));
+    const raw=new TextDecoder().decode(slice);
+    const httpIdx=raw.indexOf('http');
+    if(httpIdx<0) return null;
+    const urlRaw=raw.slice(httpIdx);
+    const url=urlRaw.replace(/[^\x21-\x7e]/g,'').trim();
+    return url||null;
   }
   return null;
 }
@@ -2799,13 +2799,9 @@ async function checkCalendarConfirmation(hash, calUrl) {
 
   const intermediateHex = Array.from(intermediate).map(b=>b.toString(16).padStart(2,'0')).join('');
 
-  // Ensure absolute URL — strip trailing slash then append path
   const base = calUrl.replace(/\/+$/,'');
   if(!base.startsWith('http')) throw new Error('Invalid calendar URL: '+base);
   const url = base + '/timestamp/' + intermediateHex;
-  console.log('[CK] Calendar URL:', base);
-  console.log('[CK] Intermediate hash:', intermediateHex);
-  console.log('[CK] Full request URL:', url);
 
   const resp = await Promise.race([
     fetch(url, {method:'GET', headers:{'Accept':'application/octet-stream'}}),
@@ -2818,7 +2814,9 @@ async function checkCalendarConfirmation(hash, calUrl) {
   }
 
   const buf = new Uint8Array(await resp.arrayBuffer());
-  return parseAttestation(buf);
+  const result = parseAttestation(buf);
+  if(result.confirmed) window._upgradedOTSBytes = buf;
+  return result;
 }
 
 // Execute OTS operations starting from the original hash, stopping when we hit
@@ -2942,24 +2940,23 @@ function sha256Sync(data) {
   return out;
 }
 
-// Parse attestation response — look for Bitcoin attestation tag
+// Parse attestation response — scan entire buffer for Bitcoin attestation tag
 // Bitcoin attestation tag: 0x0588960d73d71901 (8 bytes)
-// After tag: varint length (always 8) + uint64 LE block height
+// Format: tag(8) + length_varint(1, value=8) + block_height_uint64_LE(8)
 function parseAttestation(buf) {
   const BTC_TAG=[0x05,0x88,0x96,0x0d,0x73,0xd7,0x19,0x01];
-  outer: for(let i=0;i<buf.length-8;i++){
+  outer: for(let i=0;i<buf.length-16;i++){
     for(let j=0;j<8;j++) if(buf[i+j]!==BTC_TAG[j]) continue outer;
+    // Found tag — skip length varint
     let pos=i+8;
-    const {next}=readVarint(buf,pos); // skip length (always 8)
+    const {next}=readVarint(buf,pos);
     pos=next;
-    if(pos+8>buf.length) return {confirmed:true, blockHeight:null, date:null};
+    if(pos+8>buf.length) return {confirmed:true,blockHeight:null};
     // Read 8-byte little-endian uint64 block height
     let height=0n;
     for(let k=0;k<8;k++) height|=BigInt(buf[pos+k])<<BigInt(8*k);
     const blockHeight=Number(height);
-    // Approximate date from block height (rough estimate, not from response)
-    // The actual date comes from a block explorer — we'll just show the block height
-    return {confirmed:true, blockHeight, date:null};
+    return {confirmed:true, blockHeight};
   }
   return {confirmed:false};
 }
@@ -2976,7 +2973,10 @@ function confirmedHTML(hash, proof, attestation, calUrl) {
   const calShort=calUrl.replace('https://','').replace(/\/$/,'');
   const blockHeight=attestation.blockHeight;
   const explorerUrl=blockHeight?`https://mempool.space/block-height/${blockHeight}`:'https://mempool.space';
-  const blockStr=blockHeight?`<a href="${explorerUrl}" target="_blank" rel="noopener" style="color:var(--orange)">#${blockHeight} ↗</a>`:'unknown';
+  const blockStr=blockHeight
+    ? `<a href="${explorerUrl}" target="_blank" rel="noopener" style="color:var(--orange);font-weight:600">#${blockHeight} ↗</a>`
+    : 'unknown';
+  const proofBase=proof?proof.replace(/\.ots$/,''):'content';
   const nostrSection=nostrPubkey
     ? `<div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border)">
         <div style="font-size:13px;color:var(--text-secondary);margin-bottom:10px">
@@ -3001,8 +3001,10 @@ function confirmedHTML(hash, proof, attestation, calUrl) {
       <strong>Hash:</strong> <code style="font-family:var(--font-mono);font-size:13px;color:var(--purple-lt)">${hash.substring(0,16)}…${hash.substring(48)}</code><br>
       <strong>Proof:</strong> ${escHtml(proof||'provided')}
     </p>
-    <div class="btn-row" style="margin-top:12px">
+    <div class="btn-row" style="margin-top:12px;flex-wrap:wrap">
       <a class="btn btn-secondary" href="${explorerUrl}" target="_blank" rel="noopener">View block ↗</a>
+      <button class="btn btn-secondary" onclick="downloadUpgradedOTS('${escHtml(proofBase)}')">Download upgraded .ots</button>
+      <button class="btn btn-secondary" onclick="downloadVerifyMetaJSON(${blockHeight||'null'},'${escHtml(calShort)}','${escHtml(hash)}','${escHtml(proof||'')}')">Download metadata JSON</button>
     </div>
     ${nostrSection}
   </div>`;
@@ -3031,6 +3033,35 @@ function okHTML(hash,proof) {
 
 function failHTML(msg) {
   return `<div class="verify-fail"><h2>VERIFICATION FAILED</h2><p>${msg}</p></div>`;
+}
+
+function downloadUpgradedOTS(proofBase) {
+  if(!window._upgradedOTSBytes){toast('No upgraded proof available',true);return;}
+  // Rebuild complete .ots: magic + ver + sha256-tag + hash + upgraded calendar response
+  const hash=verifyHash||currentHash;
+  if(!hash){toast('Hash not available',true);return;}
+  const magic=new Uint8Array([0x00,0x4f,0x70,0x65,0x6e,0x54,0x69,0x6d,0x65,0x73,0x74,0x61,0x6d,0x70,0x73,0x00,0x00,0x50,0x72,0x6f,0x6f,0x66,0x00,0xbf,0x89,0xe2,0xe8,0x84,0xe8,0x92,0x94]);
+  const hb=hexToBytes(hash);
+  const upgraded=concat([magic,new Uint8Array([0x01,0x08]),hb,window._upgradedOTSBytes]);
+  dlBlob(new Blob([upgraded],{type:'application/octet-stream'}),proofBase+'.upgraded.ots');
+  toast('Upgraded proof downloaded');
+}
+
+function downloadVerifyMetaJSON(blockHeight, calendar, hash, proofName) {
+  const meta={
+    tool:'Cypher Keep',version:'0.2.5',phase:2,
+    sha256:hash,
+    ots_file:proofName||null,
+    calendar:calendar||null,
+    bitcoin_block:blockHeight||null,
+    status:'confirmed',
+    nostr_event_id:window._lastNostrEventId||null,
+    nostr_relays:window._lastNostrRelays||null,
+    arweave_id:null
+  };
+  dlBlob(new Blob([JSON.stringify(meta,null,2)],{type:'application/json'}),
+    (proofName?proofName.replace(/\.ots$/,''):'content')+'.confirmed.ckmeta.json');
+  toast('Metadata downloaded');
 }
 
 // ── NOSTR CONFIRM ANNOUNCEMENT ──
