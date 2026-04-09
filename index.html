@@ -1376,7 +1376,7 @@ footer {
   display: grid;
   grid-template-columns: 1fr auto;
   gap: 8px 16px;
-  align-items: center;
+  align-items: start;
   transition: border-color 0.15s;
 }
 
@@ -1427,6 +1427,37 @@ footer {
 }
 
 .btn-nostr-link:hover { background: rgba(124,58,237,0.18); }
+
+.stamp-meta-dropdown {
+  grid-column: 1 / -1;
+  display: none;
+  background: var(--bg-input);
+  border-radius: 6px;
+  padding: 12px 14px;
+  margin-top: 4px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-tertiary);
+  line-height: 1.8;
+  word-break: break-all;
+  white-space: pre-wrap;
+}
+
+.stamp-meta-dropdown.open { display: block; }
+
+.stamp-expand-btn {
+  background: none;
+  border: none;
+  color: var(--text-disabled);
+  cursor: pointer;
+  padding: 2px 6px;
+  font-size: 13px;
+  border-radius: 4px;
+  transition: color 0.15s;
+  line-height: 1;
+}
+
+.stamp-expand-btn:hover { color: var(--text-tertiary); }
 
 .stamps-empty {
   text-align: center;
@@ -1694,8 +1725,26 @@ footer {
           WHAT HAPPENS NEXT
         </div>
         <p style="margin-bottom:10px">Your hash has been submitted to the OpenTimestamps calendar. Within 1–2 hours it will be committed to a Bitcoin block, creating a permanent, verifiable timestamp.</p>
-        <p style="margin-bottom:10px"><strong>To confirm your timestamp:</strong> Once you believe a block has been mined, go to the <strong>Verify tab → Verify a Stamp</strong>, upload your original file and your <code style="font-family:var(--font-mono);font-size:12px;color:var(--purple-lt);background:var(--bg-input);padding:1px 5px;border-radius:3px">.ots</code> proof file. If confirmed, you'll see the Bitcoin block number and timestamp.</p>
-        <p id="stamp-next-nostr" style="display:none"><strong>If you posted to Nostr:</strong> After confirmation, go to <strong>Verify → Verify a Stamp</strong>, drop your file and .ots proof. If confirmed, an "Announce confirmation on Nostr" button will appear — CK will reply to your original stamp note with the block attestation.</p>
+        <p style="margin-bottom:14px">Once you think the block has been mined, click below to check. Or come back later and use the <a href="#" onclick="switchView('verify');setVerifyTab('stamp');return false;" style="color:var(--blue-lt);text-decoration:none;font-weight:500">Verify tab → Verify a Stamp</a> with your file and .ots proof.</p>
+        <div id="stamp-confirm-result" style="display:none;margin-bottom:12px"></div>
+        <div class="btn-row" style="flex-wrap:wrap">
+          <button class="btn btn-secondary" id="stamp-check-btn" onclick="checkStampConfirmation()">
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style="margin-right:4px">
+              <circle cx="6" cy="6" r="5" stroke="#94a3b8" stroke-width="1"/>
+              <path d="M6 3v3l2 1.5" stroke="#94a3b8" stroke-width="1" stroke-linecap="round"/>
+            </svg>
+            Check Bitcoin confirmation
+          </button>
+          <div id="stamp-confirmed-btns" style="display:none;gap:8px;flex-wrap:wrap">
+            <button class="btn btn-secondary" onclick="downloadUpgradedOTS(window._stampOTSName||'stamp')">Download upgraded .ots</button>
+            <button class="btn btn-secondary" id="copy-confirmed-summary-btn" onclick="copyConfirmedSummary()">Copy updated summary</button>
+            <button class="btn btn-secondary" onclick="downloadStampConfirmedMetaJSON()">Download updated metadata JSON</button>
+          </div>
+        </div>
+        <p id="stamp-next-nostr" style="display:none;margin-top:10px;padding-top:10px;border-top:1px solid var(--blue-border)"><strong>If you posted to Nostr:</strong> After confirmation, the Nostr reply button will appear here automatically.</p>
+        <div id="stamp-nostr-confirm-btn-wrap" style="display:none;margin-top:10px">
+          <button class="btn btn-secondary" id="stamp-nostr-confirm-btn" onclick="announceStampConfirmation()">Announce confirmation on Nostr</button>
+        </div>
       </div>
 
     </div>
@@ -1805,6 +1854,9 @@ footer {
             <button class="btn btn-secondary" onclick="downloadMetaJSON()">Download updated metadata JSON</button>
           </div>
         </div>
+
+        <!-- What happens next moves here after Nostr post -->
+        <div id="stamp-next-nostr-clone" style="display:none;margin-top:12px"></div>
 
         <div class="panel error" id="nostr-post-error" style="display:none;margin-top:14px">
           <div class="panel-title red">Publish failed</div>
@@ -2748,15 +2800,28 @@ async function doVerify() {
     if(attestation && attestation.confirmed){
       el.innerHTML=confirmedHTML(hash, verifyOTSName, attestation, calUrl);
       toast('BITCOIN CONFIRMED ✓');
-      // Show Nostr announce button if connected and we have a previous event
-      if(nostrPubkey && window._lastNostrEventId){
-        document.getElementById('announce-confirm-btn').style.display='inline-flex';
+      // Auto-find the original Nostr event by sha256 tag if connected
+      if(nostrPubkey && !window._lastNostrEventId){
+        const found=await findNostrEventByHash(hash);
+        if(found){
+          window._lastNostrEventId=found.id;
+          window._lastNostrNevent=eventIdToNevent(found.id);
+          // Re-render to show the Nostr announce section with the found event
+          el.innerHTML=confirmedHTML(hash, verifyOTSName, attestation, calUrl);
+          toast('BITCOIN CONFIRMED — original Nostr note found ✓');
+        }
       }
     } else {
       el.innerHTML=okHTML(hash,verifyOTSName)+pendingAttestHTML('Your hash is verified in the proof file but the Bitcoin timestamp is still pending. The calendar has not yet committed to a block. Check back in a few hours.');
     }
   } catch(e){
-    el.innerHTML=okHTML(hash,verifyOTSName)+pendingAttestHTML('Hash verified — Bitcoin confirmation check requires the tool to be served over HTTPS. Open Cypher Keep from cypherkeep.net or keithmeola.github.io/cypher-keep/ and try again. If it has been less than 2 hours since stamping, the block may not have been mined yet.');
+    const msg=e.message||'';
+    const isCorsProblem=msg.toLowerCase().includes('failed to fetch')||msg.toLowerCase().includes('networkerror')||msg.toLowerCase().includes('cors');
+    if(isCorsProblem){
+      el.innerHTML=okHTML(hash,verifyOTSName)+pendingAttestHTML('Hash verified locally. Could not reach the calendar server — this may be a network or CORS issue when running from a local file. Try from <a href="https://keithmeola.github.io/cypher-keep/" target="_blank" style="color:var(--purple-lt)">keithmeola.github.io/cypher-keep</a> or check manually at opentimestamps.org.');
+    } else {
+      el.innerHTML=okHTML(hash,verifyOTSName)+pendingAttestHTML('Hash verified. Calendar check failed: '+escHtml(msg)+'. Try again later or check at opentimestamps.org.');
+    }
   }
 }
 
@@ -3064,7 +3129,188 @@ function downloadVerifyMetaJSON(blockHeight, calendar, hash, proofName) {
   toast('Metadata downloaded');
 }
 
-// ── NOSTR CONFIRM ANNOUNCEMENT ──
+// ── MY STAMPS — toggle metadata dropdown ──
+function toggleStampMeta(dropId, btn) {
+  const el=document.getElementById(dropId);
+  if(!el) return;
+  const open=el.classList.toggle('open');
+  btn.textContent=open?'▲':'▼';
+  btn.title=open?'Hide metadata':'Show metadata';
+}
+
+// ── MY STAMPS — verify button ──
+function verifyFromStamp(hash) {
+  // Switch to verify tab, set hash mode, fill in hash
+  switchView('verify');
+  setVerifyTab('stamp');
+  setVerifyMode('hash');
+  document.getElementById('v-hash-input').value=hash;
+  checkVerifyReady();
+  toast('Hash loaded — drop your .ots proof file to verify');
+}
+
+// ── STAMP TAB — check confirmation ──
+async function checkStampConfirmation() {
+  if(!otsBytes||!currentHash){toast('Stamp first',true);return;}
+  const btn=document.getElementById('stamp-check-btn');
+  btn.disabled=true;
+  btn.textContent='Checking…';
+  const resultEl=document.getElementById('stamp-confirm-result');
+  resultEl.style.display='block';
+  resultEl.innerHTML=`<p style="font-size:13px;color:var(--text-secondary)">Contacting calendar server…</p>`;
+
+  const calUrl=parseCalendarUrl(otsBytes);
+  if(!calUrl){
+    resultEl.innerHTML=`<p style="font-size:13px;color:var(--text-tertiary)">Could not parse calendar URL from proof. Try the <a href="#" onclick="switchView('verify');setVerifyTab('stamp');return false;" style="color:var(--blue-lt)">Verify tab</a> with your file and .ots proof.</p>`;
+    btn.disabled=false; btn.textContent='Check Bitcoin confirmation';
+    return;
+  }
+
+  try {
+    const attestation=await checkCalendarConfirmation(currentHash, calUrl);
+    if(attestation&&attestation.confirmed){
+      const bh=attestation.blockHeight;
+      const explorerUrl=bh?`https://mempool.space/block-height/${bh}`:'https://mempool.space';
+      window._stampConfirmedBlock=bh;
+      window._stampOTSName=(currentFile?currentFile.name:'content');
+      resultEl.innerHTML=`
+        <div style="display:flex;align-items:center;gap:8px;padding:10px 0">
+          <svg viewBox="0 0 20 20" fill="none" style="width:18px;height:18px;flex-shrink:0"><circle cx="10" cy="10" r="9" stroke="#22c55e" stroke-width="1.5"/><polyline points="5.5,10 8.5,13 14.5,7" stroke="#22c55e" stroke-width="1.5" fill="none" stroke-linecap="round"/></svg>
+          <span style="font-size:14px;font-weight:600;color:var(--success)">BITCOIN CONFIRMED</span>
+          <a href="${explorerUrl}" target="_blank" rel="noopener" style="font-size:13px;color:var(--orange);font-weight:600">Block #${bh} ↗</a>
+        </div>`;
+      // Show download buttons
+      document.getElementById('stamp-confirmed-btns').style.display='flex';
+      btn.textContent='Confirmed ✓';
+      toast('BITCOIN CONFIRMED ✓');
+      // Show Nostr announce if posted
+      if(window._lastNostrEventId){
+        document.getElementById('stamp-nostr-confirm-btn-wrap').style.display='block';
+      }
+    } else {
+      resultEl.innerHTML=`<p style="font-size:13px;color:var(--text-tertiary)">Still pending — the block hasn't been mined yet. Check back in a little while.</p>`;
+      btn.disabled=false; btn.textContent='Check Bitcoin confirmation';
+    }
+  } catch(e) {
+    resultEl.innerHTML=`<p style="font-size:13px;color:var(--text-tertiary)">Could not reach calendar: ${escHtml(e.message)}. Try again or use the <a href="#" onclick="switchView('verify');setVerifyTab('stamp');return false;" style="color:var(--blue-lt)">Verify tab</a>.</p>`;
+    btn.disabled=false; btn.textContent='Check Bitcoin confirmation';
+  }
+}
+
+// ── STAMP TAB — copy confirmed summary ──
+function copyConfirmedSummary() {
+  if(!currentHash) return;
+  const bh=window._stampConfirmedBlock;
+  const lines=[
+    'CYPHER KEEP — CONFIRMED CONTENT AUTHENTICATION',
+    '─'.repeat(48),'',
+    currentFile?`File:     ${currentFile.name}`:'',
+    currentFile?`Size:     ${fmtBytes(currentFile.size)}`:'',
+    `SHA-256:  ${currentHash}`,
+    '',
+    `OTS Proof: ${otsFilename||'pending'}`,
+    `Calendar:  ${window._calendarUsed||'OpenTimestamps'}`,
+    `Bitcoin Block: ${bh||'unknown'}`,
+    bh?`Explorer:  https://mempool.space/block-height/${bh}`:'',
+    '',
+    'Verify: https://keithmeola.github.io/cypher-keep/',
+    '─'.repeat(48)
+  ].filter(l=>l!==undefined&&(l!==''||true)).join('\n');
+  navigator.clipboard.writeText(lines).then(()=>{
+    const btn=document.getElementById('copy-confirmed-summary-btn');
+    if(btn){btn.textContent='Copied!';setTimeout(()=>btn.textContent='Copy updated summary',1800);}
+    toast('Summary copied');
+  });
+}
+
+// ── STAMP TAB — download confirmed metadata JSON ──
+function downloadStampConfirmedMetaJSON() {
+  if(!currentHash) return;
+  const bh=window._stampConfirmedBlock;
+  const meta={
+    tool:'Cypher Keep',version:'0.2.5',phase:2,
+    file:currentFile?{name:currentFile.name,size:currentFile.size,type:currentFile.type||'unknown'}:null,
+    sha256:currentHash,
+    timestamp:stampedAt||new Date().toISOString(),
+    ots_file:otsFilename||null,
+    calendar:window._calendarUsed||null,
+    bitcoin_block:bh||null,
+    status:bh?'confirmed':'pending',
+    nostr_event_id:window._lastNostrEventId||null,
+    nostr_relays:window._lastNostrRelays||null,
+    arweave_id:null
+  };
+  dlBlob(new Blob([JSON.stringify(meta,null,2)],{type:'application/json'}),
+    (currentFile?currentFile.name:'content')+'.confirmed.ckmeta.json');
+  toast('Confirmed metadata downloaded');
+}
+
+// ── STAMP TAB — announce confirmation on Nostr ──
+async function announceStampConfirmation() {
+  const blockHeight=window._stampConfirmedBlock;
+  const btn=document.getElementById('stamp-nostr-confirm-btn');
+  if(!btn) return;
+  btn.disabled=true; btn.textContent='Publishing…';
+  try {
+    const replyId=window._lastNostrEventId;
+    if(!replyId) throw new Error('No Nostr event to reply to');
+    const blockStr=blockHeight?`#${blockHeight}`:'a Bitcoin block';
+    const explorerUrl=blockHeight?`https://mempool.space/block-height/${blockHeight}`:'https://mempool.space';
+    const content=`✅ Bitcoin timestamp CONFIRMED\n\nThis stamp has been committed to Bitcoin block ${blockStr}.\n${explorerUrl}\n\nHash: ${currentHash||''}\nProof: ${otsFilename||''}\n\nVerify: https://keithmeola.github.io/cypher-keep/\n\n🔑💾 Cypher Keep — Content Authentication`;
+    const event={kind:1,created_at:Math.floor(Date.now()/1000),
+      tags:[['e',replyId,'','reply'],['p',nostrPubkey],['t','cypherkeep'],['t','bitcoin'],['sha256',currentHash||'']],
+      content,pubkey:nostrPubkey};
+    const signed=await window.nostr.signEvent(event);
+    if(!signed||!signed.id) throw new Error('Signing failed');
+    const relays=window._lastNostrRelays||getActiveRelays();
+    const results=await publishToRelays(signed,relays);
+    const ok=results.filter(r=>r.ok).length;
+    btn.textContent=`Published to ${ok}/${results.length} relays ✓`;
+    toast('Confirmation announced on Nostr ✓');
+  } catch(e) {
+    btn.disabled=false; btn.textContent='Announce confirmation on Nostr';
+    toast('Failed: '+e.message,true);
+  }
+}
+
+// ── NOSTR POST — move What Happens Next after publish ──
+function moveStampNextAfterNostr() {
+  const original=document.getElementById('stamp-next');
+  const clone=document.getElementById('stamp-next-nostr-clone');
+  if(!original||!clone) return;
+  // Hide original, show clone with same content
+  original.style.display='none';
+  clone.style.display='block';
+  clone.innerHTML=original.outerHTML.replace('id="stamp-next"','id="stamp-next-clone-inner"').replace('style="display:none;','style="display:block;');
+}
+
+// ── VERIFY TAB — auto-find Nostr event by hash ──
+async function findNostrEventByHash(hash) {
+  if(!nostrPubkey||!hash) return null;
+  const filter={kinds:[1],authors:[nostrPubkey],'#sha256':[hash],limit:1};
+  const relays=getActiveRelays().length>0?getActiveRelays():[...NOSTR_RELAYS];
+  for(const url of relays){
+    try {
+      const result=await new Promise((resolve)=>{
+        const ws=new WebSocket(url);
+        const subId='ck-find-'+Math.random().toString(36).substring(2,8);
+        let found=null;
+        const timer=setTimeout(()=>{ws.close();resolve(found);},5000);
+        ws.onopen=()=>ws.send(JSON.stringify(['REQ',subId,filter]));
+        ws.onmessage=e=>{
+          try {
+            const d=JSON.parse(e.data);
+            if(Array.isArray(d)&&d[0]==='EVENT'&&d[2]){found=d[2];}
+            if(Array.isArray(d)&&d[0]==='EOSE'){clearTimeout(timer);ws.close();resolve(found);}
+          }catch(_){}
+        };
+        ws.onerror=()=>{clearTimeout(timer);resolve(null);};
+      });
+      if(result) return result;
+    }catch(_){}
+  }
+  return null;
+}
 async function announceConfirmation(blockHeight) {
   if(!nostrPubkey) return;
   const btn=document.getElementById('announce-confirm-btn');
@@ -3773,6 +4019,8 @@ async function doNostrPost() {
     // Show Nostr follow-up hint in stamp-next panel
     const nextNostr=document.getElementById('stamp-next-nostr');
     if(nextNostr) nextNostr.style.display='block';
+    // Move What Happens Next to below the Nostr post panel
+    moveStampNextAfterNostr();
 
   } catch(e) {
     document.getElementById('nostr-post-error').style.display='block';
@@ -3842,7 +4090,7 @@ async function loadStamps() {
         seen.add(h);return true;
       });
 
-    unique.forEach(({event:e, relays:foundOn})=>{
+    unique.forEach(({event:e, relays:foundOn}, idx)=>{
       const hash=getTag(e,'sha256')||'—';
       const fname=getTag(e,'filename')||'Unknown file';
       const ts=new Date(e.created_at*1000);
@@ -3850,19 +4098,35 @@ async function loadStamps() {
       const njumpUrl=`https://njump.me/${e.id}`;
       const hashShort=hash.length===64?hash.substring(0,12)+'…'+hash.substring(52):hash;
       const relayDots=foundOn.map(r=>`<span style="font-size:11px;color:var(--success)">●</span> <span style="font-size:11px;color:var(--text-tertiary)">${escHtml(r.replace('wss://',''))}</span>`).join(' &nbsp;');
+      const dropId=`stamp-meta-${idx}`;
+
+      // Build metadata content from event
+      const metaLines=[
+        `File:     ${escHtml(fname)}`,
+        `SHA-256:  ${escHtml(hash)}`,
+        `Stamped:  ${escHtml(ts.toISOString())}`,
+        `Event ID: ${escHtml(e.id)}`,
+        `Relays:   ${foundOn.map(r=>escHtml(r)).join(', ')}`,
+        '',
+        `Note content:`,
+        escHtml(e.content||'').substring(0,800)+(e.content&&e.content.length>800?'…':'')
+      ].join('\n');
 
       const item=document.createElement('div');
       item.className='stamp-item';
       item.innerHTML=`
-        <div style="flex:1;min-width:0">
+        <div style="min-width:0">
           <div class="stamp-item-name">${escHtml(fname)}</div>
           <div class="stamp-item-hash">${escHtml(hashShort)}</div>
           <div class="stamp-item-time">${escHtml(dateStr)}</div>
           <div style="margin-top:5px;display:flex;flex-wrap:wrap;gap:6px;align-items:center">${relayDots}</div>
         </div>
         <div class="stamp-item-actions">
+          <button class="stamp-expand-btn" title="Show metadata" onclick="toggleStampMeta('${dropId}',this)">▼</button>
+          <button class="btn-nostr-link" onclick="verifyFromStamp('${escHtml(hash)}')" style="background:none;border:1px solid var(--border);color:var(--text-secondary)">Verify</button>
           <a class="btn-nostr-link" href="${njumpUrl}" target="_blank" rel="noopener">View ↗</a>
-        </div>`;
+        </div>
+        <div class="stamp-meta-dropdown" id="${dropId}">${metaLines}</div>`;
       list.appendChild(item);
     });
 
