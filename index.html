@@ -47,10 +47,14 @@
   /* Text — high contrast */
   --text-primary:  #f1f5f9;
   --text-secondary:#94a3b8;
-  --text-tertiary: #64748b;
-  --text-disabled: #334155;
+  --text-tertiary: #7a8fa8;
+  --text-disabled: #4a5f7a;
 
-  /* Typography */
+  /* Blue — info/local badge */
+  --blue:        #3b82f6;
+  --blue-lt:     #60a5fa;
+  --blue-bg:     rgba(59,130,246,0.10);
+  --blue-border: rgba(59,130,246,0.30);
   --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
   --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
 }
@@ -62,7 +66,7 @@ body {
   background: var(--bg);
   color: var(--text-primary);
   font-family: var(--font-sans);
-  font-size: 14px;
+  font-size: 16px;
   line-height: 1.6;
   min-height: 100vh;
   -webkit-font-smoothing: antialiased;
@@ -105,7 +109,7 @@ header {
 }
 
 .logo-wordmark {
-  font-size: 15px;
+  font-size: 17px;
   font-weight: 600;
   letter-spacing: -0.01em;
   color: var(--text-primary);
@@ -120,7 +124,7 @@ nav { display: flex; gap: 2px; }
   border: none;
   color: var(--text-tertiary);
   font-family: var(--font-sans);
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 500;
   padding: 6px 14px;
   border-radius: 6px;
@@ -132,14 +136,38 @@ nav { display: flex; gap: 2px; }
 .nav-btn.active { color: var(--text-primary); background: var(--bg-input); }
 
 .header-badge {
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 500;
-  color: var(--text-tertiary);
+  color: var(--blue-lt);
   letter-spacing: 0.02em;
   padding: 4px 10px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--blue-border);
   border-radius: 20px;
   white-space: nowrap;
+  background: var(--blue-bg);
+  cursor: help;
+  position: relative;
+}
+
+.header-badge:hover::after {
+  content: "All cryptographic operations run locally in your browser. No files, keys, or data are ever transmitted to any server. SHA-256 via Web Crypto API · age encryption inlined · OTS submitted to public calendars only";
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 280px;
+  background: var(--bg-card);
+  border: 1px solid var(--blue-border);
+  border-radius: 8px;
+  padding: 12px 14px;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--text-secondary);
+  line-height: 1.6;
+  letter-spacing: 0;
+  z-index: 300;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+  white-space: normal;
+  text-align: left;
 }
 
 /* ── VIEWS ── */
@@ -150,7 +178,7 @@ nav { display: flex; gap: 2px; }
 .page-header { margin-bottom: 32px; }
 
 .page-header h1 {
-  font-size: 22px;
+  font-size: 24px;
   font-weight: 600;
   letter-spacing: -0.02em;
   color: var(--text-primary);
@@ -158,7 +186,7 @@ nav { display: flex; gap: 2px; }
 }
 
 .page-header p {
-  font-size: 14px;
+  font-size: 16px;
   color: var(--text-secondary);
   line-height: 1.7;
   max-width: 560px;
@@ -181,7 +209,7 @@ nav { display: flex; gap: 2px; }
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 600;
   color: var(--text-tertiary);
   flex-shrink: 0;
@@ -194,12 +222,12 @@ nav { display: flex; gap: 2px; }
 }
 
 .step-title {
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 600;
   color: var(--text-secondary);
   letter-spacing: 0.01em;
   text-transform: uppercase;
-  font-size: 11px;
+  font-size: 13px;
   letter-spacing: 0.08em;
 }
 
@@ -231,7 +259,7 @@ nav { display: flex; gap: 2px; }
   border: none;
   color: var(--text-tertiary);
   font-family: var(--font-sans);
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 500;
   padding: 7px 12px;
   border-radius: 5px;
@@ -280,20 +308,20 @@ nav { display: flex; gap: 2px; }
 }
 
 .drop-zone h3 {
-  font-size: 14px;
+  font-size: 16px;
   font-weight: 600;
   color: var(--text-primary);
   margin-bottom: 4px;
 }
 
 .drop-zone p {
-  font-size: 12px;
+  font-size: 14px;
   color: var(--text-tertiary);
 }
 
 .drop-note {
   margin-top: 12px;
-  font-size: 11px;
+  font-size: 13px;
   color: var(--text-disabled);
   display: flex;
   align-items: center;
@@ -336,7 +364,7 @@ nav { display: flex; gap: 2px; }
 .file-chip-meta { flex: 1; min-width: 0; }
 
 .file-chip-name {
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 500;
   color: var(--text-primary);
   white-space: nowrap;
@@ -345,7 +373,7 @@ nav { display: flex; gap: 2px; }
 }
 
 .file-chip-size {
-  font-size: 11px;
+  font-size: 13px;
   color: var(--text-tertiary);
   margin-top: 1px;
 }
@@ -358,7 +386,7 @@ nav { display: flex; gap: 2px; }
   height: 28px;
   border-radius: 5px;
   cursor: pointer;
-  font-size: 14px;
+  font-size: 16px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -374,14 +402,14 @@ nav { display: flex; gap: 2px; }
 
 label.field-label {
   display: block;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 500;
   color: var(--text-secondary);
   margin-bottom: 6px;
 }
 
 .field-hint {
-  font-size: 11px;
+  font-size: 13px;
   color: var(--text-tertiary);
   margin-top: 5px;
 }
@@ -394,7 +422,7 @@ textarea.input {
   border-radius: 7px;
   color: var(--text-primary);
   font-family: var(--font-sans);
-  font-size: 13px;
+  font-size: 15px;
   padding: 9px 12px;
   outline: none;
   transition: border-color 0.15s;
@@ -406,7 +434,7 @@ textarea.input:focus { border-color: var(--purple); }
 input.input::placeholder,
 textarea.input::placeholder { color: var(--text-disabled); }
 
-input.mono { font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.03em; }
+input.mono { font-family: var(--font-mono); font-size: 14px; letter-spacing: 0.03em; }
 
 textarea.input { resize: vertical; min-height: 72px; line-height: 1.6; }
 
@@ -417,7 +445,7 @@ textarea.input { resize: vertical; min-height: 72px; line-height: 1.6; }
 .progress-row {
   display: flex;
   justify-content: space-between;
-  font-size: 11px;
+  font-size: 13px;
   color: var(--text-tertiary);
   margin-bottom: 6px;
 }
@@ -441,7 +469,7 @@ textarea.input { resize: vertical; min-height: 72px; line-height: 1.6; }
 .hash-result.show { display: block; animation: fadeIn 0.3s ease; }
 
 .hash-label {
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.07em;
@@ -462,7 +490,7 @@ textarea.input { resize: vertical; min-height: 72px; line-height: 1.6; }
 
 .hash-value {
   font-family: var(--font-mono);
-  font-size: 12px;
+  font-size: 14px;
   color: var(--purple-lt);
   word-break: break-all;
   flex: 1;
@@ -475,7 +503,7 @@ textarea.input { resize: vertical; min-height: 72px; line-height: 1.6; }
   border: 1px solid var(--border);
   color: var(--text-tertiary);
   font-family: var(--font-sans);
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 500;
   padding: 4px 10px;
   border-radius: 5px;
@@ -506,7 +534,7 @@ textarea.input { resize: vertical; min-height: 72px; line-height: 1.6; }
 }
 
 .meta-key {
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.07em;
@@ -515,7 +543,7 @@ textarea.input { resize: vertical; min-height: 72px; line-height: 1.6; }
 }
 
 .meta-val {
-  font-size: 12px;
+  font-size: 14px;
   color: var(--text-secondary);
   word-break: break-all;
 }
@@ -530,7 +558,7 @@ textarea.input { resize: vertical; min-height: 72px; line-height: 1.6; }
   justify-content: center;
   gap: 6px;
   font-family: var(--font-sans);
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 600;
   padding: 9px 18px;
   border-radius: 7px;
@@ -595,7 +623,7 @@ textarea.input { resize: vertical; min-height: 72px; line-height: 1.6; }
   gap: 10px;
   padding: 10px 14px;
   border-bottom: 1px solid var(--border);
-  font-size: 12px;
+  font-size: 14px;
   color: var(--text-secondary);
 }
 
@@ -642,7 +670,7 @@ textarea.input { resize: vertical; min-height: 72px; line-height: 1.6; }
 .panel.error.show { display: block; }
 
 .panel-title {
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 600;
   color: var(--text-primary);
   margin-bottom: 5px;
@@ -656,7 +684,7 @@ textarea.input { resize: vertical; min-height: 72px; line-height: 1.6; }
 .panel-title.amber { color: var(--warning); }
 
 .panel p {
-  font-size: 13px;
+  font-size: 15px;
   color: var(--text-secondary);
   line-height: 1.7;
 }
@@ -690,7 +718,7 @@ textarea.input { resize: vertical; min-height: 72px; line-height: 1.6; }
 
 .coming-badge {
   display: inline-block;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -702,14 +730,14 @@ textarea.input { resize: vertical; min-height: 72px; line-height: 1.6; }
 }
 
 .coming-card h3 {
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 600;
   color: var(--text-secondary);
   margin-bottom: 6px;
 }
 
 .coming-card p {
-  font-size: 12px;
+  font-size: 14px;
   color: var(--text-tertiary);
   line-height: 1.7;
 }
@@ -734,14 +762,14 @@ textarea.input { resize: vertical; min-height: 72px; line-height: 1.6; }
 }
 
 .verify-ok h2 {
-  font-size: 16px;
+  font-size: 18px;
   font-weight: 600;
   color: var(--success);
   margin-bottom: 8px;
 }
 
 .verify-ok p {
-  font-size: 13px;
+  font-size: 15px;
   color: var(--text-secondary);
   line-height: 1.75;
 }
@@ -756,14 +784,14 @@ textarea.input { resize: vertical; min-height: 72px; line-height: 1.6; }
 }
 
 .verify-fail h2 {
-  font-size: 16px;
+  font-size: 18px;
   font-weight: 600;
   color: var(--error);
   margin-bottom: 8px;
 }
 
 .verify-fail p {
-  font-size: 13px;
+  font-size: 15px;
   color: var(--text-secondary);
   line-height: 1.75;
 }
@@ -785,7 +813,7 @@ textarea.input { resize: vertical; min-height: 72px; line-height: 1.6; }
   border: none;
   color: var(--text-tertiary);
   font-family: var(--font-sans);
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 500;
   padding: 7px 12px;
   border-radius: 5px;
@@ -815,7 +843,7 @@ footer {
 }
 
 .footer-left {
-  font-size: 12px;
+  font-size: 14px;
   color: var(--text-disabled);
   line-height: 1.8;
 }
@@ -830,7 +858,7 @@ footer {
 }
 
 .tag {
-  font-size: 11px;
+  font-size: 13px;
   color: var(--text-disabled);
   border: 1px solid var(--border);
   border-radius: 4px;
@@ -847,7 +875,7 @@ footer {
   border-left: 3px solid var(--success);
   border-radius: 7px;
   padding: 10px 16px;
-  font-size: 13px;
+  font-size: 15px;
   color: var(--text-primary);
   z-index: 500;
   max-width: 300px;
@@ -895,14 +923,14 @@ footer {
 }
 
 .nostr-login-title {
-  font-size: 15px;
+  font-size: 17px;
   font-weight: 600;
   color: var(--text-primary);
   margin-bottom: 6px;
 }
 
 .nostr-login-sub {
-  font-size: 13px;
+  font-size: 15px;
   color: var(--text-tertiary);
   margin-bottom: 20px;
   line-height: 1.6;
@@ -932,14 +960,14 @@ footer {
 }
 
 .nostr-login-option-title {
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 600;
   color: var(--text-primary);
   margin-bottom: 3px;
 }
 
 .nostr-login-option-desc {
-  font-size: 11px;
+  font-size: 13px;
   color: var(--text-tertiary);
   line-height: 1.5;
 }
@@ -957,10 +985,10 @@ footer {
   margin-top: 12px;
 }
 
-.nostr-bunker-input-row input { flex: 1; font-size: 11px; }
+.nostr-bunker-input-row input { flex: 1; font-size: 13px; }
 
 .nostr-login-error {
-  font-size: 12px;
+  font-size: 14px;
   color: var(--error);
   margin-top: 10px;
   display: none;
@@ -974,7 +1002,7 @@ footer {
   background: none;
   border: none;
   color: var(--text-disabled);
-  font-size: 12px;
+  font-size: 14px;
   cursor: pointer;
   padding: 8px;
   margin-top: 4px;
@@ -992,7 +1020,7 @@ footer {
   border: 1px solid var(--purple-border);
   color: var(--purple-lt);
   font-family: var(--font-sans);
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 500;
   padding: 5px 12px;
   border-radius: 6px;
@@ -1012,7 +1040,7 @@ footer {
 
 .nostr-npub {
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: 13px;
   letter-spacing: 0.02em;
 }
 
@@ -1058,7 +1086,7 @@ footer {
 .nostr-hover-card {
   display: none;
   position: absolute;
-  top: calc(100% + 10px);
+  top: calc(100% + 4px);
   right: 0;
   width: 260px;
   background: var(--bg-card);
@@ -1070,10 +1098,11 @@ footer {
   animation: fadeIn 0.15s ease;
 }
 
-.nostr-btn-wrap:hover .nostr-hover-card[data-connected="true"] { display: block; }
+.nostr-btn-wrap:hover .nostr-hover-card[data-connected="true"],
+.nostr-hover-card[data-connected="true"]:hover { display: block; }
 
 .nostr-hover-card-name {
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 600;
   color: var(--text-primary);
   margin-bottom: 2px;
@@ -1083,7 +1112,7 @@ footer {
 }
 
 .nostr-hover-card-nip05 {
-  font-size: 11px;
+  font-size: 13px;
   color: var(--success);
   margin-bottom: 10px;
   white-space: nowrap;
@@ -1093,7 +1122,7 @@ footer {
 
 .nostr-hover-card-npub {
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: 12px;
   color: var(--text-tertiary);
   word-break: break-all;
   line-height: 1.5;
@@ -1107,7 +1136,7 @@ footer {
 .nostr-hover-relays { margin-bottom: 12px; }
 
 .nostr-hover-relay-title {
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.07em;
@@ -1119,7 +1148,7 @@ footer {
   display: flex;
   align-items: center;
   gap: 7px;
-  font-size: 11px;
+  font-size: 13px;
   color: var(--text-tertiary);
   margin-bottom: 4px;
   font-family: var(--font-mono);
@@ -1142,7 +1171,7 @@ footer {
   border: 1px solid var(--border);
   color: var(--text-tertiary);
   font-family: var(--font-sans);
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 500;
   padding: 7px;
   border-radius: 6px;
@@ -1155,7 +1184,7 @@ footer {
 
 /* ── NOSTR PREVIEW ── */
 .nostr-preview-header {
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.07em;
@@ -1169,7 +1198,7 @@ footer {
   border-radius: 8px;
   padding: 14px;
   margin-bottom: 14px;
-  font-size: 11px;
+  font-size: 13px;
   color: var(--text-secondary);
   line-height: 1.75;
   white-space: pre-wrap;
@@ -1185,7 +1214,7 @@ footer {
   border: none;
   color: var(--text-tertiary);
   font-family: var(--font-sans);
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 500;
   cursor: pointer;
   padding: 0;
@@ -1199,7 +1228,7 @@ footer {
 .advanced-toggle:hover { color: var(--text-secondary); }
 
 .advanced-toggle-arrow {
-  font-size: 10px;
+  font-size: 12px;
   transition: transform 0.2s;
   display: inline-block;
 }
@@ -1223,7 +1252,7 @@ footer {
   gap: 8px;
   padding: 6px 0;
   border-bottom: 1px solid var(--border);
-  font-size: 12px;
+  font-size: 14px;
 }
 
 .relay-check-row:last-child { border-bottom: none; }
@@ -1238,7 +1267,7 @@ footer {
 
 .relay-check-row label {
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: 13px;
   color: var(--text-secondary);
   cursor: pointer;
   flex: 1;
@@ -1264,7 +1293,7 @@ footer {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 11px;
+  font-size: 13px;
   color: var(--text-tertiary);
   font-family: var(--font-mono);
 }
@@ -1305,14 +1334,14 @@ footer {
 }
 
 .overlay-title {
-  font-size: 15px;
+  font-size: 17px;
   font-weight: 600;
   color: var(--text-primary);
   margin-bottom: 12px;
 }
 
 .overlay-body {
-  font-size: 13px;
+  font-size: 15px;
   color: var(--text-secondary);
   line-height: 1.75;
   margin-bottom: 20px;
@@ -1322,7 +1351,7 @@ footer {
 
 .overlay-body code {
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: 13px;
   color: var(--purple-lt);
   background: var(--bg-input);
   padding: 1px 5px;
@@ -1354,7 +1383,7 @@ footer {
 .stamp-item:hover { border-color: var(--border-focus); }
 
 .stamp-item-name {
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 500;
   color: var(--text-primary);
   white-space: nowrap;
@@ -1364,14 +1393,14 @@ footer {
 
 .stamp-item-hash {
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: 13px;
   color: var(--purple-lt);
   letter-spacing: 0.02em;
   margin-top: 2px;
 }
 
 .stamp-item-time {
-  font-size: 11px;
+  font-size: 13px;
   color: var(--text-tertiary);
   margin-top: 3px;
 }
@@ -1384,7 +1413,7 @@ footer {
 }
 
 .btn-nostr-link {
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 500;
   color: var(--purple-lt);
   background: var(--purple-bg);
@@ -1403,7 +1432,7 @@ footer {
   text-align: center;
   padding: 48px 24px;
   color: var(--text-disabled);
-  font-size: 13px;
+  font-size: 15px;
   line-height: 1.8;
 }
 
@@ -1411,14 +1440,14 @@ footer {
   text-align: center;
   padding: 40px;
   color: var(--text-tertiary);
-  font-size: 13px;
+  font-size: 15px;
 }
 
 .relay-status {
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 11px;
+  font-size: 13px;
   color: var(--text-tertiary);
   margin-bottom: 16px;
 }
@@ -1491,7 +1520,7 @@ footer {
           <div class="nostr-hover-card" id="nostr-hover-card">
             <div class="nostr-hover-card-name" id="hc-name">—</div>
             <div class="nostr-hover-card-nip05" id="hc-nip05" style="display:none"></div>
-            <div style="font-size:10px;color:var(--text-disabled);margin-bottom:8px" id="hc-method"></div>
+            <div style="font-size: 12px;color:var(--text-disabled);margin-bottom:8px" id="hc-method"></div>
             <div class="nostr-hover-card-npub" id="hc-npub" onclick="copyNpub()" title="Click to copy">—</div>
             <div class="nostr-hover-relays">
               <div class="nostr-hover-relay-title">Active relays</div>
@@ -1611,12 +1640,12 @@ footer {
 
   <div class="card">
     <div class="card-body">
-      <p style="font-size:13px;color:var(--text-secondary);line-height:1.75;margin-bottom:16px;">
-        OpenTimestamps batches your hash with thousands of others into a Merkle tree and commits the root to the Bitcoin blockchain. Your <code style="font-family:var(--font-mono);font-size:12px;color:var(--purple-lt);background:var(--bg-input);padding:1px 5px;border-radius:3px">.ots</code> file proves your content existed at this moment — verifiable by anyone, forever.
+      <p style="font-size: 15px;color:var(--text-secondary);line-height:1.75;margin-bottom:16px;">
+        OpenTimestamps batches your hash with thousands of others into a Merkle tree and commits the root to the Bitcoin blockchain. Your <code style="font-family:var(--font-mono);font-size: 14px;color:var(--purple-lt);background:var(--bg-input);padding:1px 5px;border-radius:3px">.ots</code> file proves your content existed at this moment — verifiable by anyone, forever.
       </p>
 
       <button class="btn btn-orange btn-full" id="stamp-btn" onclick="doStamp()" disabled>
-        Stamp to Bitcoin timestamp
+        Stamp with OpenTimestamps
       </button>
 
       <div class="ots-log" id="ots-log">
@@ -1640,7 +1669,7 @@ footer {
             <circle cx="7" cy="7" r="6" stroke="#22c55e" stroke-width="1"/>
             <polyline points="4,7 6.5,9.5 10.5,4.5" stroke="#22c55e" stroke-width="1.3" fill="none"/>
           </svg>
-          Timestamp submitted
+          TIMESTAMP SUBMITTED
         </div>
         <p>
           Your hash is pending Bitcoin block confirmation — typically 1–2 hours.
@@ -1654,6 +1683,21 @@ footer {
         </div>
       </div>
 
+      <!-- What's next after stamp -->
+      <div class="panel" id="stamp-next" style="display:none;margin-top:12px;border-color:var(--blue-border);background:var(--blue-bg)">
+        <div class="panel-title" style="color:var(--blue-lt)">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+            <circle cx="7" cy="7" r="6" stroke="#60a5fa" stroke-width="1"/>
+            <line x1="7" y1="4" x2="7" y2="7.5" stroke="#60a5fa" stroke-width="1.3"/>
+            <circle cx="7" cy="9.5" r="0.7" fill="#60a5fa"/>
+          </svg>
+          WHAT HAPPENS NEXT
+        </div>
+        <p style="margin-bottom:10px">Your hash has been submitted to the OpenTimestamps calendar. Within 1–2 hours it will be committed to a Bitcoin block, creating a permanent, verifiable timestamp.</p>
+        <p style="margin-bottom:10px"><strong>To confirm your timestamp:</strong> Once you believe a block has been mined, go to the <strong>Verify tab → Verify a Stamp</strong>, upload your original file and your <code style="font-family:var(--font-mono);font-size:12px;color:var(--purple-lt);background:var(--bg-input);padding:1px 5px;border-radius:3px">.ots</code> proof file. If confirmed, you'll see the Bitcoin block number and timestamp.</p>
+        <p id="stamp-next-nostr" style="display:none"><strong>If you posted to Nostr:</strong> After confirmation, go to <strong>Verify → Verify a Stamp</strong>, drop your file and .ots proof. If confirmed, an "Announce confirmation on Nostr" button will appear — CK will reply to your original stamp note with the block attestation.</p>
+      </div>
+
     </div>
   </div>
 
@@ -1661,11 +1705,11 @@ footer {
   <div id="nostr-post-section" style="display:none;margin-top:0">
     <div class="step-label" style="margin-top:6px">
       <div class="step-num" id="sn3">3</div>
-      <div class="step-title">Announce on Nostr <span style="font-weight:400;color:var(--text-disabled);text-transform:none;font-size:11px;letter-spacing:0">— optional</span></div>
+      <div class="step-title">Announce on Nostr <span style="font-weight:400;color:var(--text-disabled);text-transform:none;font-size: 13px;letter-spacing:0">— optional</span></div>
     </div>
     <div class="card">
       <div class="card-body">
-        <p style="font-size:13px;color:var(--text-secondary);line-height:1.75;margin-bottom:16px">
+        <p style="font-size: 15px;color:var(--text-secondary);line-height:1.75;margin-bottom:16px">
           Post your stamp as a public, censorship-resistant Nostr event. Your hash, filename, and pending OTS proof will be permanently recorded under your Nostr identity.
         </p>
 
@@ -1690,21 +1734,21 @@ footer {
 
         <!-- Post options -->
         <div style="display:flex;flex-wrap:wrap;gap:16px;margin-bottom:14px;align-items:center">
-          <label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-size:12px;color:var(--text-secondary)">
+          <label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-size: 14px;color:var(--text-secondary)">
             <input type="checkbox" id="opt-ck-header" checked onchange="updateNostrPreview()" style="accent-color:var(--purple);width:13px;height:13px">
             Include "Cypher Keep" header
           </label>
-          <label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-size:12px;color:var(--text-secondary)">
+          <label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-size: 14px;color:var(--text-secondary)">
             <input type="checkbox" id="opt-msg-top" checked onchange="updateNostrPreview()" style="accent-color:var(--purple);width:13px;height:13px">
             Message at top
-            <span style="font-size:11px;color:var(--text-disabled)">(uncheck to move to end)</span>
+            <span style="font-size: 13px;color:var(--text-disabled)">(uncheck to move to bottom)</span>
           </label>
         </div>
 
         <!-- Live preview -->
         <div class="nostr-preview-header" style="display:flex;align-items:center;justify-content:space-between">
           <span>Preview</span>
-          <span style="font-size:10px;font-weight:400;color:var(--text-disabled);text-transform:none;letter-spacing:0">Stamp data is fixed — only your message above is editable</span>
+          <span style="font-size: 12px;font-weight:400;color:var(--text-disabled);text-transform:none;letter-spacing:0">Stamp data is fixed — only your message above is editable</span>
         </div>
         <div class="nostr-preview" id="nostr-preview">—</div>
 
@@ -1732,8 +1776,8 @@ footer {
           </div>
           <div id="custom-relay-list"></div>
           <div class="relay-custom-row">
-            <input class="input mono" id="custom-relay-input" type="text" placeholder="wss://your-relay.com" style="font-size:11px">
-            <button class="btn btn-secondary" onclick="addCustomRelay()" style="padding:7px 12px;font-size:12px">Add</button>
+            <input class="input mono" id="custom-relay-input" type="text" placeholder="wss://your-relay.com" style="font-size: 13px">
+            <button class="btn btn-secondary" onclick="addCustomRelay()" style="padding:7px 12px;font-size: 14px">Add</button>
           </div>
         </div>
 
@@ -1751,12 +1795,14 @@ footer {
               <circle cx="7" cy="7" r="6" stroke="#22c55e" stroke-width="1"/>
               <polyline points="4,7 6.5,9.5 10.5,4.5" stroke="#22c55e" stroke-width="1.3" fill="none"/>
             </svg>
-            Published to Nostr
+            PUBLISHED TO NOSTR
           </div>
           <p>Your stamp has been announced. The embedded proof is <strong>pending Bitcoin confirmation</strong> (~1–2 hours). Keep your <strong>.ots file</strong> — it will carry the confirmed proof once the block is mined.</p>
           <div class="relay-results" id="nostr-relay-results"></div>
-          <div class="btn-row">
+          <div class="btn-row" style="flex-wrap:wrap">
             <a class="btn btn-secondary" id="nostr-event-link" href="#" target="_blank" rel="noopener">View on njump ↗</a>
+            <button class="btn btn-secondary" id="copy-nevent-btn" onclick="copyNevent()">Copy nevent</button>
+            <button class="btn btn-secondary" onclick="downloadMetaJSON()">Download updated metadata JSON</button>
           </div>
         </div>
 
@@ -1771,7 +1817,7 @@ footer {
   <!-- Coming soon -->
   <div class="divider"></div>
 
-  <p style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.07em;color:var(--text-disabled);margin-bottom:14px">Coming in next phases</p>
+  <p style="font-size: 13px;font-weight:600;text-transform:uppercase;letter-spacing:0.07em;color:var(--text-disabled);margin-bottom:14px">Coming in next phases</p>
 
   <div class="coming-grid">
     <div class="coming-card full">
@@ -1879,7 +1925,7 @@ footer {
   </div>
 
   <button class="btn btn-primary btn-full" id="verify-btn" onclick="doVerify()" disabled style="margin-bottom:14px">
-    Verify proof
+    Verify proof &amp; check Bitcoin confirmation
   </button>
 
   <div class="verify-result" id="verify-result"></div>
@@ -1945,7 +1991,7 @@ footer {
 
   <div class="step-label" style="margin-top:6px">
     <div class="step-num">2</div>
-    <div class="step-title">Compare against expected hash <span style="font-weight:400;color:var(--text-disabled);text-transform:none;font-size:11px;letter-spacing:0">— optional</span></div>
+    <div class="step-title">Compare against expected hash <span style="font-weight:400;color:var(--text-disabled);text-transform:none;font-size: 13px;letter-spacing:0">— optional</span></div>
   </div>
 
   <div class="card">
@@ -2183,7 +2229,7 @@ footer {
 
   <div id="stamps-container">
     <div class="stamps-empty" id="stamps-empty" style="display:none">
-      <div style="font-size:28px;margin-bottom:12px;opacity:0.3">◈</div>
+      <div style="font-size: 30px;margin-bottom:12px;opacity:0.3">◈</div>
       No stamps found on Nostr yet.<br>
       <span style="color:var(--text-disabled)">Stamp a file and post it to Nostr to build your history.</span>
     </div>
@@ -2213,15 +2259,15 @@ footer {
       </button>
       <button class="nostr-login-option" onclick="showBunkerPanel()">
         <div class="nostr-login-option-title">Nsec Bunker / Remote Signer</div>
-        <div class="nostr-login-option-desc">Connect via NIP-46 using a <code style="font-family:var(--font-mono);font-size:10px">bunker://</code> or <code style="font-family:var(--font-mono);font-size:10px">nostrconnect://</code> string. Your key never leaves your signer.</div>
+        <div class="nostr-login-option-desc">Connect via NIP-46 using a <code style="font-family:var(--font-mono);font-size: 12px">bunker://</code> or <code style="font-family:var(--font-mono);font-size: 12px">nostrconnect://</code> string. Your key never leaves your signer.</div>
       </button>
     </div>
 
     <div class="nostr-bunker-panel" id="nostr-bunker-panel">
-      <div class="field-label" style="font-size:12px;margin-bottom:6px">Connection string</div>
+      <div class="field-label" style="font-size: 14px;margin-bottom:6px">Connection string</div>
       <div class="nostr-bunker-input-row">
         <input class="input mono" id="bunker-input" type="text" placeholder="bunker://... or nostrconnect://..." spellcheck="false" autocomplete="off">
-        <button class="btn btn-primary" id="bunker-connect-btn" onclick="loginWithBunker()" style="padding:8px 14px;font-size:12px">Connect</button>
+        <button class="btn btn-primary" id="bunker-connect-btn" onclick="loginWithBunker()" style="padding:8px 14px;font-size: 14px">Connect</button>
       </div>
       <div class="field-hint" style="margin-top:6px">
         Supported: nsecBunker, Amber, and any NIP-46 compatible remote signer.
@@ -2245,14 +2291,14 @@ footer {
         SHA-256 via Web Crypto API ·
         <a href="https://opentimestamps.org" target="_blank" rel="noopener">OpenTimestamps</a>
         · All computation is local. Nothing leaves your browser.<br>
-        Built by <a href="https://njump.me/npub1ygzsm5m9ndtgch9n22cwsx2clwvxhk2pqvdfp36t5lmdyjqvz84qkca2m5" target="_blank" rel="noopener">Keith Meola</a> · <a href="lightning:keith@getalby.com" title="Zap via Lightning">⚡ zap</a>
+        Built by <a href="https://njump.me/npub1ygzsm5m9ndtgch9n22cwsx2clwvxhk2pqvdfp36t5lmdyjqvz84qkca2m5" target="_blank" rel="noopener">Keith Meola</a> · <a href="lightning:keith@getalby.com" title="Value-for-Value via Lightning">⚡ Value-for-Value</a>
       </div>
       <div class="footer-tags">
         <span class="tag">SHA-256</span>
-        <a href="https://opentimestamps.org" target="_blank" rel="noopener" class="tag" style="text-decoration:none;color:var(--text-disabled)">OpenTimestamps</a>
-        <a href="https://bitcoin.org" target="_blank" rel="noopener" class="tag" style="text-decoration:none;color:var(--text-disabled)">Bitcoin</a>
+        <a href="https://opentimestamps.org" target="_blank" rel="noopener" class="tag" style="text-decoration:none;color:#60a5fa;border-color:rgba(59,130,246,0.3)">OpenTimestamps</a>
+        <a href="https://bitcoin.org" target="_blank" rel="noopener" class="tag" style="text-decoration:none;color:#f7931a;border-color:rgba(247,147,26,0.3)">Bitcoin</a>
         <span class="tag">age encryption</span>
-        <a href="https://nostr.org" target="_blank" rel="noopener" class="tag" style="text-decoration:none;color:var(--text-disabled)">Nostr</a>
+        <a href="https://nostr.org" target="_blank" rel="noopener" class="tag" style="text-decoration:none;color:#a78bfa;border-color:rgba(124,58,237,0.3)">Nostr</a>
       </div>
     </div>
   </div>
@@ -2316,6 +2362,24 @@ makeDrop('enc-drop','enc-file-input',loadEncFile);
 makeDrop('dec-drop','dec-file-input',loadDecFile);
 makeDrop('vh-drop','vh-file-input',loadVhFile);
 
+// ── ENTER KEY SUPPORT ──
+document.addEventListener('keydown', e => {
+  if(e.key !== 'Enter') return;
+  const active = document.activeElement;
+  if(!active) return;
+  const id = active.id;
+  // Stamp tab — manual hash input
+  if(id === 'manual-hash') { e.preventDefault(); if(!document.getElementById('stamp-btn').disabled) doStamp(); return; }
+  // Verify tab — hash input
+  if(id === 'v-hash-input') { e.preventDefault(); if(!document.getElementById('verify-btn').disabled) doVerify(); return; }
+  // Verify hash tab — expected hash
+  if(id === 'vh-expected') { e.preventDefault(); doVhCompare(); return; }
+  // Bunker input
+  if(id === 'bunker-input') { e.preventDefault(); loginWithBunker(); return; }
+  // Custom relay input
+  if(id === 'custom-relay-input') { e.preventDefault(); addCustomRelay(); return; }
+});
+
 function showChip(chipId, extId, nameId, sizeId, f) {
   document.getElementById(extId).textContent  = f.name.split('.').pop().substring(0,5).toUpperCase()||'FILE';
   document.getElementById(nameId).textContent = f.name;
@@ -2346,6 +2410,7 @@ function resetStampUI() {
   document.getElementById('hash-progress').classList.remove('show');
   document.getElementById('ots-log').classList.remove('show');
   document.getElementById('stamp-success').classList.remove('show');
+  document.getElementById('stamp-next').style.display='none';
   document.getElementById('prog-bar').style.width='0%';
   document.getElementById('nostr-post-section').style.display='none';
 }
@@ -2425,7 +2490,7 @@ async function doStamp() {
 
   const hb=hexToBytes(currentHash);
   const cals=['https://alice.btc.calendar.opentimestamps.org','https://bob.btc.calendar.opentimestamps.org','https://finney.calendar.eternitywall.com'];
-  let resp=null,cal=null;
+  let resp=null, cal=null;
   for(const c of cals){
     try{
       const r=await fetch(c+'/digest',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:hb});
@@ -2439,6 +2504,8 @@ async function doStamp() {
     return;
   }
 
+  window._calendarUsed = cal;
+
   setLog('submit','ok',`Submitted to ${cal.replace('https://','')}`);
   setLog('recv','ok','Acknowledged — pending Bitcoin block inclusion (~1–2 hrs)');
   setLog('build','active','Assembling proof file...');
@@ -2448,6 +2515,7 @@ async function doStamp() {
   otsFilename=(currentFile?currentFile.name:'content')+'.ots';
   setLog('build','ok',`Proof ready — ${otsFilename}`);
   document.getElementById('stamp-success').classList.add('show');
+  document.getElementById('stamp-next').style.display='block';
   document.getElementById('sn2').classList.add('done');
   document.getElementById('sn2').textContent='✓';
   toast('Timestamp submitted ✓');
@@ -2478,12 +2546,16 @@ function downloadOTS() {
 
 function downloadMetaJSON() {
   if(!currentHash)return;
-  const meta={tool:'Cypher Keep',version:'2.0.0',phase:2,
+  const cal=window._calendarUsed||'OpenTimestamps';
+  const meta={tool:'Cypher Keep',version:'0.2.5',phase:2,
     file:currentFile?{name:currentFile.name,size:currentFile.size,type:currentFile.type||'unknown'}:null,
     sha256:currentHash,timestamp:stampedAt||new Date().toISOString(),
-    ots_file:otsFilename||null,calendar:'OpenTimestamps / Bitcoin',
+    ots_file:otsFilename||null,
+    calendar:cal,
     note:document.getElementById('note-input').value.trim()||null,
-    nostr_event_id:window._lastNostrEventId||null,arweave_id:null};
+    nostr_event_id:window._lastNostrEventId||null,
+    nostr_relays:window._lastNostrRelays||null,
+    arweave_id:null};
   dlBlob(new Blob([JSON.stringify(meta,null,2)],{type:'application/json'}),
     (currentFile?currentFile.name:'content')+'.ckmeta.json');
   toast('Metadata downloaded');
@@ -2500,7 +2572,7 @@ function copySummary() {
     `Stamped:  ${stampedAt||new Date().toISOString()}`,
     '',`SHA-256:  ${currentHash}`,'',
     `OTS Proof: ${otsFilename||'pending'}`,
-    'Calendar:  OpenTimestamps / Bitcoin',
+    `Calendar:  ${window._calendarUsed||'OpenTimestamps'}`,
     'Status:    Pending Bitcoin block confirmation (~1–2 hours)',
     '',note?`Note: ${note}`:'',
     '','Verify: https://opentimestamps.org',
@@ -2596,16 +2668,16 @@ function doVhCompare() {
         <svg viewBox="0 0 48 48" fill="none"><circle cx="24" cy="24" r="22" stroke="#22c55e" stroke-width="1.5"/>
         <polyline points="14,24 21,31 34,16" stroke="#22c55e" stroke-width="2" fill="none" stroke-linecap="round"/></svg>
       </div>
-      <h2 style="font-size:15px">Hash match</h2>
-      <p style="font-size:13px">The file matches the expected hash. The content is unaltered.</p>
+      <h2 style="font-size: 17px">HASH MATCH</h2>
+      <p style="font-size: 15px">The file matches the expected hash. The content is unaltered.</p>
     </div>`;
-    toast('Hash match ✓');
+    toast('HASH MATCH ✓');
   } else {
     resultEl.innerHTML=`<div class="verify-fail" style="padding:18px 20px">
-      <h2 style="font-size:15px">Hash mismatch</h2>
-      <p style="font-size:13px">The file does not match the expected hash. The content may have been modified, or the wrong file was selected.</p>
+      <h2 style="font-size: 17px">HASH MISMATCH</h2>
+      <p style="font-size: 15px">The file does not match the expected hash. The content may have been modified, or the wrong file was selected.</p>
     </div>`;
-    toast('Hash mismatch', true);
+    toast('HASH MISMATCH', true);
   }
 }
 
@@ -2645,19 +2717,388 @@ function checkVerifyReady() {
 async function doVerify() {
   const hash=verifyHash||document.getElementById('v-hash-input').value.trim().toLowerCase();
   const el=document.getElementById('verify-result');
+  el.innerHTML='';
   el.classList.add('show');
-  if(!verifyOTS||verifyOTS.length<65){el.innerHTML=failHTML('Invalid .ots file — too short or malformed.');return;}
+
+  if(!verifyOTS||verifyOTS.length<65){
+    el.innerHTML=failHTML('Invalid .ots file — too short or malformed.');
+    return;
+  }
+
+  // Step 1: check hash matches what's in the OTS file
   const otsHash=Array.from(verifyOTS.slice(33,65)).map(b=>b.toString(16).padStart(2,'0')).join('');
-  if(otsHash===hash){el.innerHTML=okHTML(hash,verifyOTSName);toast('Proof verified ✓');}
-  else{el.innerHTML=failHTML('Hash mismatch. The content does not match this proof. Either the content has been modified, or the wrong proof file was provided.');toast('Verification failed',true);}
+  if(otsHash!==hash){
+    el.innerHTML=failHTML('HASH MISMATCH. The content does not match this proof. Either the content has been modified, or the wrong proof file was provided.');
+    toast('VERIFICATION FAILED',true);
+    return;
+  }
+
+  // Step 2: hash matches — now check Bitcoin confirmation via calendar
+  el.innerHTML=pendingCheckHTML();
+  toast('Hash verified — checking Bitcoin confirmation…');
+
+  const calUrl=parseCalendarUrl(verifyOTS);
+  if(!calUrl){
+    el.innerHTML=okHTML(hash,verifyOTSName)+pendingAttestHTML('Could not parse calendar URL from proof file. Check confirmation manually at opentimestamps.org.');
+    return;
+  }
+
+  try {
+    const attestation=await checkCalendarConfirmation(hash, calUrl);
+    if(attestation && attestation.confirmed){
+      el.innerHTML=confirmedHTML(hash, verifyOTSName, attestation, calUrl);
+      toast('BITCOIN CONFIRMED ✓');
+      // Show Nostr announce button if connected and we have a previous event
+      if(nostrPubkey && window._lastNostrEventId){
+        document.getElementById('announce-confirm-btn').style.display='inline-flex';
+      }
+    } else {
+      el.innerHTML=okHTML(hash,verifyOTSName)+pendingAttestHTML('Your hash is verified in the proof file but the Bitcoin timestamp is still pending. The calendar has not yet committed to a block. Check back in a few hours.');
+    }
+  } catch(e){
+    el.innerHTML=okHTML(hash,verifyOTSName)+pendingAttestHTML('Hash verified — Bitcoin confirmation check requires the tool to be served over HTTPS. Open Cypher Keep from cypherkeep.net or keithmeola.github.io/cypher-keep/ and try again. If it has been less than 2 hours since stamping, the block may not have been mined yet.');
+  }
+}
+
+// Parse the calendar URL from OTS binary
+// Pending attestation tag: 0x83dfe30d2ef90c8e (8 bytes)
+function parseCalendarUrl(ots) {
+  const PENDING_TAG=[0x83,0xdf,0xe3,0x0d,0x2e,0xf9,0x0c,0x8e];
+  outer: for(let i=0;i<ots.length-8;i++){
+    for(let j=0;j<8;j++) if(ots[i+j]!==PENDING_TAG[j]) continue outer;
+    // Found tag at i — read varint length then URL
+    let pos=i+8;
+    const {val:len, next}=readVarint(ots,pos);
+    pos=next;
+    if(pos+len>ots.length) return null;
+    return new TextDecoder().decode(ots.slice(pos,pos+len));
+  }
+  return null;
+}
+
+// Read OTS varint (variable length integer)
+function readVarint(buf, pos) {
+  let val=0, shift=0;
+  while(pos<buf.length){
+    const b=buf[pos++];
+    val|=(b&0x7f)<<shift;
+    if(!(b&0x80)) break;
+    shift+=7;
+  }
+  return {val, next:pos};
+}
+
+// Call calendar upgrade endpoint with the correct intermediate hash
+async function checkCalendarConfirmation(hash, calUrl) {
+  const intermediate = executeOpsToCalendar(verifyOTS, hexToBytes(hash));
+  if(!intermediate) throw new Error('Could not compute intermediate hash from proof');
+
+  const base = calUrl.replace(/\/$/,'');
+  const url = `${base}/timestamp/${Array.from(intermediate).map(b=>b.toString(16).padStart(2,'0')).join('')}`;
+
+  // POST with binary hash bytes — same pattern as submission, avoids CORS preflight issues
+  const resp = await Promise.race([
+    fetch(url, {
+      method:'GET',
+      headers:{'Accept':'application/octet-stream'}
+    }).catch(()=>
+      // Fallback to POST if GET is blocked
+      fetch(base+'/timestamp', {
+        method:'POST',
+        headers:{'Content-Type':'application/x-www-form-urlencoded','Accept':'application/octet-stream'},
+        body:intermediate
+      })
+    ),
+    new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout')),12000))
+  ]);
+
+  if(!resp.ok) {
+    if(resp.status===404) return {confirmed:false};
+    throw new Error(`Calendar returned ${resp.status}`);
+  }
+
+  const buf = new Uint8Array(await resp.arrayBuffer());
+  return parseAttestation(buf);
+}
+
+// Execute OTS operations starting from the original hash, stopping when we hit
+// a pending attestation — the current value at that point is what was sent to the calendar
+function executeOpsToCalendar(ots, startHash) {
+  // OTS format: magic(31) + 0x01(ver) + 0x08(sha256) + hash(32) + ops...
+  // ops start at byte 65
+  let pos = 65;
+  let current = startHash;
+
+  try {
+    while(pos < ots.length) {
+      const tag = ots[pos];
+
+      // Pending attestation tag: 0x83dfe30d2ef90c8e — return current value
+      if(tag === 0x83 && pos+7 < ots.length) {
+        const pending = [0x83,0xdf,0xe3,0x0d,0x2e,0xf9,0x0c,0x8e];
+        let match = true;
+        for(let i=0;i<8;i++) if(ots[pos+i]!==pending[i]){match=false;break;}
+        if(match) return current; // This is the value submitted to the calendar
+      }
+
+      // Bitcoin attestation tag — already confirmed, return current
+      if(tag === 0x05 && pos+7 < ots.length) {
+        const btc = [0x05,0x88,0x96,0x0d,0x73,0xd7,0x19,0x01];
+        let match = true;
+        for(let i=0;i<8;i++) if(ots[pos+i]!==btc[i]){match=false;break;}
+        if(match) return current;
+      }
+
+      // Fork (0xff) — try first branch only
+      if(tag === 0xff) { pos++; continue; }
+
+      // Append (0xf0): read length+data, append to current
+      if(tag === 0xf0) {
+        pos++;
+        const {val:len, next} = readVarint(ots, pos);
+        pos = next;
+        const arg = ots.slice(pos, pos+len);
+        pos += len;
+        const combined = new Uint8Array(current.length + len);
+        combined.set(current); combined.set(arg, current.length);
+        current = combined;
+        continue;
+      }
+
+      // Prepend (0xf1): read length+data, prepend to current
+      if(tag === 0xf1) {
+        pos++;
+        const {val:len, next} = readVarint(ots, pos);
+        pos = next;
+        const arg = ots.slice(pos, pos+len);
+        pos += len;
+        const combined = new Uint8Array(len + current.length);
+        combined.set(arg); combined.set(current, len);
+        current = combined;
+        continue;
+      }
+
+      // SHA256 (0x08): hash current synchronously using a simple implementation
+      if(tag === 0x08) {
+        pos++;
+        current = sha256Sync(current);
+        continue;
+      }
+
+      // Unknown op — skip
+      pos++;
+    }
+  } catch(_) {}
+  return current;
+}
+
+// Synchronous SHA-256 using the OTS proof's own embedded hash chains
+// We use a simple pure-JS SHA-256 for op-tree execution
+function sha256Sync(data) {
+  // Pure JS SHA-256 — needed for synchronous OTS op execution
+  const K=[0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,
+    0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,
+    0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,
+    0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,
+    0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,
+    0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,
+    0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,
+    0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2];
+  let h=[0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19];
+  const r=(n,b)=>n>>>b|n<<(32-b);
+  // Pad
+  const len=data.length;
+  const padLen=((len+8>>6)+1)<<6;
+  const padded=new Uint8Array(padLen);
+  padded.set(data);
+  padded[len]=0x80;
+  const view=new DataView(padded.buffer);
+  view.setUint32(padLen-4,len*8,false);
+  // Process blocks
+  const W=new Uint32Array(64);
+  for(let i=0;i<padLen;i+=64){
+    for(let j=0;j<16;j++) W[j]=view.getUint32(i+j*4,false);
+    for(let j=16;j<64;j++){
+      const s0=r(W[j-15],7)^r(W[j-15],18)^(W[j-15]>>>3);
+      const s1=r(W[j-2],17)^r(W[j-2],19)^(W[j-2]>>>10);
+      W[j]=(W[j-16]+s0+W[j-7]+s1)>>>0;
+    }
+    let [a,b,c,d,e,f,g,hh]=h;
+    for(let j=0;j<64;j++){
+      const S1=r(e,6)^r(e,11)^r(e,25);
+      const ch=(e&f)^(~e&g);
+      const t1=(hh+S1+ch+K[j]+W[j])>>>0;
+      const S0=r(a,2)^r(a,13)^r(a,22);
+      const maj=(a&b)^(a&c)^(b&c);
+      const t2=(S0+maj)>>>0;
+      hh=g;g=f;f=e;e=(d+t1)>>>0;d=c;c=b;b=a;a=(t1+t2)>>>0;
+    }
+    h[0]=(h[0]+a)>>>0;h[1]=(h[1]+b)>>>0;h[2]=(h[2]+c)>>>0;h[3]=(h[3]+d)>>>0;
+    h[4]=(h[4]+e)>>>0;h[5]=(h[5]+f)>>>0;h[6]=(h[6]+g)>>>0;h[7]=(h[7]+hh)>>>0;
+  }
+  const out=new Uint8Array(32);
+  const ov=new DataView(out.buffer);
+  h.forEach((v,i)=>ov.setUint32(i*4,v,false));
+  return out;
+}
+
+// Parse attestation response — look for Bitcoin attestation tag
+// Bitcoin attestation tag: 0x0588960d73d71901 (8 bytes)
+// After tag: varint length (always 8) + uint64 LE block height
+function parseAttestation(buf) {
+  const BTC_TAG=[0x05,0x88,0x96,0x0d,0x73,0xd7,0x19,0x01];
+  outer: for(let i=0;i<buf.length-8;i++){
+    for(let j=0;j<8;j++) if(buf[i+j]!==BTC_TAG[j]) continue outer;
+    let pos=i+8;
+    const {next}=readVarint(buf,pos); // skip length (always 8)
+    pos=next;
+    if(pos+8>buf.length) return {confirmed:true, blockHeight:null, date:null};
+    // Read 8-byte little-endian uint64 block height
+    let height=0n;
+    for(let k=0;k<8;k++) height|=BigInt(buf[pos+k])<<BigInt(8*k);
+    const blockHeight=Number(height);
+    // Approximate date from block height (rough estimate, not from response)
+    // The actual date comes from a block explorer — we'll just show the block height
+    return {confirmed:true, blockHeight, date:null};
+  }
+  return {confirmed:false};
+}
+
+function pendingCheckHTML() {
+  return `<div class="verify-ok" style="opacity:0.7">
+    <div class="verify-ok-icon"><svg viewBox="0 0 48 48" fill="none"><circle cx="24" cy="24" r="22" stroke="#22c55e" stroke-width="1.5"/><polyline points="14,24 21,31 34,16" stroke="#22c55e" stroke-width="2" fill="none" stroke-linecap="round"/></svg></div>
+    <h2>HASH VERIFIED</h2>
+    <p>Checking Bitcoin confirmation with calendar server…</p>
+  </div>`;
+}
+
+function confirmedHTML(hash, proof, attestation, calUrl) {
+  const calShort=calUrl.replace('https://','').replace(/\/$/,'');
+  const blockHeight=attestation.blockHeight;
+  const explorerUrl=blockHeight?`https://mempool.space/block-height/${blockHeight}`:'https://mempool.space';
+  const blockStr=blockHeight?`<a href="${explorerUrl}" target="_blank" rel="noopener" style="color:var(--orange)">#${blockHeight} ↗</a>`:'unknown';
+  const nostrSection=nostrPubkey
+    ? `<div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border)">
+        <div style="font-size:13px;color:var(--text-secondary);margin-bottom:10px">
+          ${window._lastNostrEventId
+            ? 'Reply to your original stamp note with this confirmation:'
+            : 'Have a Nostr stamp note to reply to? Paste the nevent or note ID:'}
+        </div>
+        ${!window._lastNostrEventId ? `<div style="display:flex;gap:8px;margin-bottom:10px">
+          <input class="input mono" id="confirm-nevent-input" type="text" placeholder="nevent1... or event ID hex" style="font-size:12px;flex:1">
+        </div>` : ''}
+        <button class="btn btn-secondary" id="announce-confirm-btn" onclick="announceConfirmation(${blockHeight||'null'})">
+          Announce confirmation on Nostr
+        </button>
+      </div>`
+    : '';
+  return `<div class="verify-ok">
+    <div class="verify-ok-icon"><svg viewBox="0 0 48 48" fill="none"><circle cx="24" cy="24" r="22" stroke="#22c55e" stroke-width="1.5"/><polyline points="14,24 21,31 34,16" stroke="#22c55e" stroke-width="2" fill="none" stroke-linecap="round"/></svg></div>
+    <h2>BITCOIN CONFIRMED</h2>
+    <p>
+      This content existed prior to Bitcoin block ${blockStr}.<br><br>
+      <strong>Calendar:</strong> ${escHtml(calShort)}<br>
+      <strong>Hash:</strong> <code style="font-family:var(--font-mono);font-size:13px;color:var(--purple-lt)">${hash.substring(0,16)}…${hash.substring(48)}</code><br>
+      <strong>Proof:</strong> ${escHtml(proof||'provided')}
+    </p>
+    <div class="btn-row" style="margin-top:12px">
+      <a class="btn btn-secondary" href="${explorerUrl}" target="_blank" rel="noopener">View block ↗</a>
+    </div>
+    ${nostrSection}
+  </div>`;
+}
+
+function pendingAttestHTML(msg) {
+  return `<div class="panel" style="margin-top:12px;border-color:var(--warning-border);background:var(--warning-bg)">
+    <div class="panel-title amber">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+        <path d="M7 1.5L13 12H1L7 1.5Z" stroke="#f59e0b" stroke-width="1" fill="none"/>
+        <line x1="7" y1="6" x2="7" y2="9" stroke="#f59e0b" stroke-width="1.2"/>
+        <circle cx="7" cy="10.5" r="0.6" fill="#f59e0b"/>
+      </svg>
+      BITCOIN CONFIRMATION PENDING
+    </div>
+    <p>${escHtml(msg)}</p>
+    <div class="btn-row" style="margin-top:10px">
+      <a class="btn btn-secondary" href="https://opentimestamps.org" target="_blank" rel="noopener">Check at opentimestamps.org ↗</a>
+    </div>
+  </div>`;
 }
 
 function okHTML(hash,proof) {
-  return `<div class="verify-ok"><div class="verify-ok-icon"><svg viewBox="0 0 48 48" fill="none"><circle cx="24" cy="24" r="22" stroke="#22c55e" stroke-width="1.5"/><polyline points="14,24 21,31 34,16" stroke="#22c55e" stroke-width="2" fill="none" stroke-linecap="round"/></svg></div><h2>Proof verified</h2><p>This content is unaltered since it was stamped.<br><br>Hash: <code style="font-family:var(--font-mono);font-size:11px;color:var(--purple-lt)">${hash.substring(0,16)}...${hash.substring(48)}</code><br>Proof: ${proof||'provided'}<br><br>Confirm Bitcoin block time at <a href="https://opentimestamps.org" target="_blank" style="color:var(--purple-lt)">opentimestamps.org</a>.</p></div>`;
+  return `<div class="verify-ok"><div class="verify-ok-icon"><svg viewBox="0 0 48 48" fill="none"><circle cx="24" cy="24" r="22" stroke="#22c55e" stroke-width="1.5"/><polyline points="14,24 21,31 34,16" stroke="#22c55e" stroke-width="2" fill="none" stroke-linecap="round"/></svg></div><h2>PROOF VERIFIED</h2><p>This content is unaltered since it was stamped.<br><br>Hash: <code style="font-family:var(--font-mono);font-size: 13px;color:var(--purple-lt)">${hash.substring(0,16)}...${hash.substring(48)}</code><br>Proof: ${proof||'provided'}</p></div>`;
 }
 
 function failHTML(msg) {
-  return `<div class="verify-fail"><h2>Verification failed</h2><p>${msg}</p></div>`;
+  return `<div class="verify-fail"><h2>VERIFICATION FAILED</h2><p>${msg}</p></div>`;
+}
+
+// ── NOSTR CONFIRM ANNOUNCEMENT ──
+async function announceConfirmation(blockHeight) {
+  if(!nostrPubkey) return;
+  const btn=document.getElementById('announce-confirm-btn');
+  btn.disabled=true;
+  btn.textContent='Publishing…';
+
+  // Get reply target — either from session or manual input
+  let replyId=window._lastNostrEventId;
+  if(!replyId) {
+    const input=document.getElementById('confirm-nevent-input');
+    if(input&&input.value.trim()) {
+      const raw=input.value.trim();
+      // Accept hex event ID or nevent1...
+      if(/^[0-9a-f]{64}$/.test(raw)) {
+        replyId=raw;
+      } else if(raw.startsWith('nevent1')) {
+        // Decode nevent — extract 32-byte event ID from TLV
+        try {
+          const decoded=bech32Decode(raw);
+          if(decoded&&decoded.length>=35) {
+            // TLV: type(1)+len(1)+id(32) = skip first 2 bytes
+            replyId=Array.from(decoded.slice(2,34)).map(b=>b.toString(16).padStart(2,'0')).join('');
+          }
+        } catch(_){}
+      }
+    }
+  }
+
+  if(!replyId) {
+    btn.disabled=false;
+    btn.textContent='Announce confirmation on Nostr';
+    toast('Paste a note ID or nevent to reply to',true);
+    return;
+  }
+
+  const blockStr=blockHeight?`#${blockHeight}`:'a Bitcoin block';
+  const explorerUrl=blockHeight?`https://mempool.space/block-height/${blockHeight}`:'https://mempool.space';
+  try {
+    const content=`✅ Bitcoin timestamp CONFIRMED\n\nThis stamp has been committed to Bitcoin block ${blockStr}.\n${explorerUrl}\n\nHash: ${verifyHash||''}\nProof: ${verifyOTSName||''}\n\nVerify: https://keithmeola.github.io/cypher-keep/\n\n🔑💾 Cypher Keep — Content Authentication`;
+    const event={
+      kind:1,
+      created_at:Math.floor(Date.now()/1000),
+      tags:[
+        ['e',replyId,'','reply'],
+        ['p',nostrPubkey],
+        ['t','cypherkeep'],
+        ['t','timestamp'],
+        ['t','bitcoin'],
+        ['sha256',verifyHash||'']
+      ],
+      content,
+      pubkey:nostrPubkey
+    };
+    const signed=await window.nostr.signEvent(event);
+    if(!signed||!signed.id) throw new Error('Signing failed');
+    const relays=window._lastNostrRelays||getActiveRelays();
+    const results=await publishToRelays(signed,relays);
+    const ok=results.filter(r=>r.ok).length;
+    btn.textContent=`Published to ${ok}/${results.length} relays ✓`;
+    toast('Confirmation announced on Nostr ✓');
+  } catch(e){
+    btn.disabled=false;
+    btn.textContent='Announce confirmation on Nostr';
+    toast('Failed: '+e.message,true);
+  }
 }
 
 // ── ENCRYPT (age format) ──
@@ -3090,6 +3531,27 @@ function renderHoverCardRelays() {
   });
 }
 
+function copyNevent() {
+  const nevent=window._lastNostrNevent;
+  if(!nevent){toast('No event available',true);return;}
+  navigator.clipboard.writeText(nevent).then(()=>{
+    const btn=document.getElementById('copy-nevent-btn');
+    btn.textContent='Copied!';
+    setTimeout(()=>btn.textContent='Copy nevent',1500);
+    toast('nevent copied');
+  });
+}
+
+// Encode event id as nevent1... bech32
+function eventIdToNevent(hexId) {
+  try {
+    const bytes=hexId.match(/.{2}/g).map(b=>parseInt(b,16));
+    // TLV: type=0 (id), length=32, value=bytes
+    const tlv=[0,0,32,...bytes];
+    return bech32Encode('nevent',tlv);
+  } catch(_){ return null; }
+}
+
 function copyNpub() {
   const npub=pubkeyToNpub(nostrPubkey);
   navigator.clipboard.writeText(npub).then(()=>toast('npub copied'));
@@ -3154,8 +3616,8 @@ function addCustomRelayToList(url) {
   row.dataset.url=url;
   row.innerHTML=`
     <input type="checkbox" checked style="accent-color:var(--purple);width:13px;height:13px;pointer-events:none">
-    <label style="font-family:var(--font-mono);font-size:11px;color:var(--text-secondary);flex:1">${escHtml(url.replace('wss://',''))}</label>
-    <button onclick="removeCustomRelay('${escHtml(url)}')" style="background:none;border:none;color:var(--text-tertiary);cursor:pointer;font-size:12px;padding:0 4px" title="Remove">×</button>`;
+    <label style="font-family:var(--font-mono);font-size: 13px;color:var(--text-secondary);flex:1">${escHtml(url.replace('wss://',''))}</label>
+    <button onclick="removeCustomRelay('${escHtml(url)}')" style="background:none;border:none;color:var(--text-tertiary);cursor:pointer;font-size: 14px;padding:0 4px" title="Remove">×</button>`;
   container.appendChild(row);
 }
 
@@ -3184,12 +3646,12 @@ function buildNostrContent() {
   const showHeader=document.getElementById('opt-ck-header')?document.getElementById('opt-ck-header').checked:true;
   const msgAtTop=document.getElementById('opt-msg-top')?document.getElementById('opt-msg-top').checked:true;
 
-  const header=showHeader?'📌 Cypher Keep — Content Authentication Stamp':'';
+  const header=showHeader?'🔑💾 Cypher Keep — Content Authentication Stamp':'';
   const stampData=[
     `File: ${fname}`,
     `SHA-256: ${currentHash}`,
     `Stamped: ${stampedAt||new Date().toISOString()}`,
-    `Calendar: OpenTimestamps / Bitcoin`,
+    `Calendar: ${window._calendarUsed||'OpenTimestamps'}`,
     `Status: Pending Bitcoin block confirmation (~1–2 hours)`,
     '',
     `OTS Proof (pending, base64): ${otsB64}`,
@@ -3275,6 +3737,11 @@ async function doNostrPost() {
     btn.textContent='Posted ✓';
     toast(`Published to ${ok}/${results.length} relays ✓`);
     window._lastNostrEventId=signed.id;
+    window._lastNostrRelays=results.filter(r=>r.ok).map(r=>r.relay);
+    window._lastNostrNevent=eventIdToNevent(signed.id);
+    // Show Nostr follow-up hint in stamp-next panel
+    const nextNostr=document.getElementById('stamp-next-nostr');
+    if(nextNostr) nextNostr.style.display='block';
 
   } catch(e) {
     document.getElementById('nostr-post-error').style.display='block';
@@ -3323,11 +3790,11 @@ async function loadStamps() {
   document.getElementById('refresh-stamps-btn').disabled=true;
 
   try {
-    const events=await queryRelayForStamps(nostrPubkey);
+    const results=await queryRelayForStamps(nostrPubkey);
     loading.style.display='none';
     document.getElementById('refresh-stamps-btn').disabled=false;
 
-    if(!events||events.length===0){
+    if(!results||results.length===0){
       empty.style.display='block';
       dot.className='relay-dot ok';
       statusTxt.textContent='Connected — no stamps found';
@@ -3336,29 +3803,31 @@ async function loadStamps() {
 
     // Deduplicate by sha256 tag, newest first
     const seen=new Set();
-    const unique=events
-      .sort((a,b)=>b.created_at-a.created_at)
-      .filter(e=>{
-        const h=getTag(e,'sha256');
+    const unique=results
+      .sort((a,b)=>b.event.created_at-a.event.created_at)
+      .filter(({event})=>{
+        const h=getTag(event,'sha256');
         if(!h||seen.has(h)){return false;}
         seen.add(h);return true;
       });
 
-    unique.forEach(e=>{
+    unique.forEach(({event:e, relays:foundOn})=>{
       const hash=getTag(e,'sha256')||'—';
       const fname=getTag(e,'filename')||'Unknown file';
       const ts=new Date(e.created_at*1000);
       const dateStr=ts.toLocaleDateString('en-US',{year:'numeric',month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
       const njumpUrl=`https://njump.me/${e.id}`;
       const hashShort=hash.length===64?hash.substring(0,12)+'…'+hash.substring(52):hash;
+      const relayDots=foundOn.map(r=>`<span style="font-size:11px;color:var(--success)">●</span> <span style="font-size:11px;color:var(--text-tertiary)">${escHtml(r.replace('wss://',''))}</span>`).join(' &nbsp;');
 
       const item=document.createElement('div');
       item.className='stamp-item';
       item.innerHTML=`
-        <div>
+        <div style="flex:1;min-width:0">
           <div class="stamp-item-name">${escHtml(fname)}</div>
           <div class="stamp-item-hash">${escHtml(hashShort)}</div>
           <div class="stamp-item-time">${escHtml(dateStr)}</div>
+          <div style="margin-top:5px;display:flex;flex-wrap:wrap;gap:6px;align-items:center">${relayDots}</div>
         </div>
         <div class="stamp-item-actions">
           <a class="btn-nostr-link" href="${njumpUrl}" target="_blank" rel="noopener">View ↗</a>
@@ -3381,31 +3850,36 @@ function queryRelayForStamps(pubkey) {
   const filter={kinds:[1],authors:[pubkey],'#t':[NOSTR_TAG],limit:100};
   const relays=getActiveRelays().length>0?getActiveRelays():[...NOSTR_RELAYS];
 
-  return new Promise((resolve,reject)=>{
-    let tried=0;
-    function tryNext() {
-      if(tried>=relays.length){reject(new Error('All relays failed'));return;}
-      const url=relays[tried++];
-      const events=[];
-      let done=false;
-      try {
-        const ws=new WebSocket(url);
-        const subId='ck-'+Math.random().toString(36).substring(2,8);
-        const timer=setTimeout(()=>{if(!done){done=true;ws.close();if(events.length>0)resolve(events);else tryNext();}},6000);
-        ws.onopen=()=>ws.send(JSON.stringify(['REQ',subId,filter]));
-        ws.onmessage=e=>{
-          try {
-            const d=JSON.parse(e.data);
-            if(!Array.isArray(d))return;
-            if(d[0]==='EVENT'&&d[1]===subId&&d[2]) events.push(d[2]);
-            if(d[0]==='EOSE'){clearTimeout(timer);done=true;ws.close();resolve(events);}
-          }catch(_){}
-        };
-        ws.onerror=()=>{if(!done){done=true;clearTimeout(timer);tryNext();}};
-        ws.onclose=()=>{if(!done){done=true;clearTimeout(timer);if(events.length>0)resolve(events);else tryNext();}};
-      }catch(_){tryNext();}
-    }
-    tryNext();
+  // Query all relays in parallel, track which relay each event came from
+  return Promise.all(relays.map(url=>new Promise(resolve=>{
+    const events=[];
+    let done=false;
+    try {
+      const ws=new WebSocket(url);
+      const subId='ck-'+Math.random().toString(36).substring(2,8);
+      const timer=setTimeout(()=>{if(!done){done=true;ws.close();resolve({relay:url,events});}},6000);
+      ws.onopen=()=>ws.send(JSON.stringify(['REQ',subId,filter]));
+      ws.onmessage=e=>{
+        try {
+          const d=JSON.parse(e.data);
+          if(!Array.isArray(d))return;
+          if(d[0]==='EVENT'&&d[1]===subId&&d[2]) events.push(d[2]);
+          if(d[0]==='EOSE'){clearTimeout(timer);done=true;ws.close();resolve({relay:url,events});}
+        }catch(_){}
+      };
+      ws.onerror=()=>{if(!done){done=true;ws.close();resolve({relay:url,events});}};
+      ws.onclose=()=>{if(!done){done=true;resolve({relay:url,events});}};
+    }catch(_){resolve({relay:url,events});}
+  }))).then(results=>{
+    // Merge events, tracking which relays each event id was found on
+    const eventMap=new Map(); // id -> {event, relays:[]}
+    results.forEach(({relay,events})=>{
+      events.forEach(ev=>{
+        if(!eventMap.has(ev.id)) eventMap.set(ev.id,{event:ev,relays:[]});
+        eventMap.get(ev.id).relays.push(relay);
+      });
+    });
+    return Array.from(eventMap.values());
   });
 }
 
@@ -3466,6 +3940,24 @@ function bech32Encode(prefix,data) {
   const checksum=[];
   for(let i=0;i<6;i++) checksum.push((chk>>(5*(5-i)))&31);
   return prefix+'1'+[...converted,...checksum].map(v=>CHARSET[v]).join('');
+}
+
+function bech32Decode(str) {
+  const CHARSET='qpzry9x8gf2tvdw0s3jn54khce6mua7l';
+  str=str.toLowerCase();
+  const sep=str.lastIndexOf('1');
+  if(sep<1) return null;
+  const data=str.slice(sep+1,-6); // strip checksum
+  const bytes5=[];
+  for(const c of data){const i=CHARSET.indexOf(c);if(i<0)return null;bytes5.push(i);}
+  // convert 5-bit to 8-bit
+  let acc=0,bits=0;
+  const result=[];
+  for(const v of bytes5){
+    acc=(acc<<5)|v;bits+=5;
+    if(bits>=8){bits-=8;result.push((acc>>bits)&0xff);}
+  }
+  return new Uint8Array(result);
 }
 
 function uint8ToBase64(u8){
