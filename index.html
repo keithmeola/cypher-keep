@@ -2766,12 +2766,16 @@ function parseCalendarUrl(ots) {
   const PENDING_TAG=[0x83,0xdf,0xe3,0x0d,0x2e,0xf9,0x0c,0x8e];
   outer: for(let i=0;i<ots.length-8;i++){
     for(let j=0;j<8;j++) if(ots[i+j]!==PENDING_TAG[j]) continue outer;
-    // Found tag at i — read varint length then URL
     let pos=i+8;
     const {val:len, next}=readVarint(ots,pos);
     pos=next;
     if(pos+len>ots.length) return null;
-    return new TextDecoder().decode(ots.slice(pos,pos+len));
+    // Decode and strip any non-printable chars, whitespace, nulls
+    const raw=new TextDecoder().decode(ots.slice(pos,pos+len));
+    const cleaned=raw.replace(/[^\x20-\x7e]/g,'').trim();
+    // Must start with http
+    if(!cleaned.startsWith('http')) return null;
+    return cleaned;
   }
   return null;
 }
@@ -2793,22 +2797,18 @@ async function checkCalendarConfirmation(hash, calUrl) {
   const intermediate = executeOpsToCalendar(verifyOTS, hexToBytes(hash));
   if(!intermediate) throw new Error('Could not compute intermediate hash from proof');
 
-  const base = calUrl.replace(/\/$/,'');
-  const url = `${base}/timestamp/${Array.from(intermediate).map(b=>b.toString(16).padStart(2,'0')).join('')}`;
+  const intermediateHex = Array.from(intermediate).map(b=>b.toString(16).padStart(2,'0')).join('');
 
-  // POST with binary hash bytes — same pattern as submission, avoids CORS preflight issues
+  // Ensure absolute URL — strip trailing slash then append path
+  const base = calUrl.replace(/\/+$/,'');
+  if(!base.startsWith('http')) throw new Error('Invalid calendar URL: '+base);
+  const url = base + '/timestamp/' + intermediateHex;
+  console.log('[CK] Calendar URL:', base);
+  console.log('[CK] Intermediate hash:', intermediateHex);
+  console.log('[CK] Full request URL:', url);
+
   const resp = await Promise.race([
-    fetch(url, {
-      method:'GET',
-      headers:{'Accept':'application/octet-stream'}
-    }).catch(()=>
-      // Fallback to POST if GET is blocked
-      fetch(base+'/timestamp', {
-        method:'POST',
-        headers:{'Content-Type':'application/x-www-form-urlencoded','Accept':'application/octet-stream'},
-        body:intermediate
-      })
-    ),
+    fetch(url, {method:'GET', headers:{'Accept':'application/octet-stream'}}),
     new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout')),12000))
   ]);
 
