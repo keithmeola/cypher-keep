@@ -2853,56 +2853,69 @@ async function checkCalendarConfirmation(hash, calUrl) {
     throw new Error('OpenTimestamps library not loaded — check your connection');
   }
 
-  // Build a DetachedTimestampFile from the hash
-  const hashBytes = hexToBytes(hash);
-  const detached = OpenTimestamps.DetachedTimestampFile.fromHash(
-    new OpenTimestamps.Ops.OpSHA256(), hashBytes
-  );
-
-  // Deserialize the .ots proof into the detached object
-  // The verifyOTS bytes are the raw .ots file
   const otsToUpgrade = verifyOTS || otsBytes;
   if(!otsToUpgrade) throw new Error('No OTS proof available');
 
-  // Deserialize existing proof
-  const existingDetached = OpenTimestamps.DetachedTimestampFile.deserialize(
+  // Deserialize the .ots proof
+  const detachedOts = OpenTimestamps.DetachedTimestampFile.deserialize(
     Array.from(otsToUpgrade)
   );
 
-  // Use OpenTimestamps.upgrade() — contacts the calendar, handles all op-tree traversal
+  // Build the original file's detached timestamp (from just the hash)
+  const hashBytes = hexToBytes(hash);
+  const op = new OpenTimestamps.Ops.OpSHA256();
+  const detachedOriginal = OpenTimestamps.DetachedTimestampFile.fromHash(op, hashBytes);
+
+  // Upgrade — contacts calendar, fills in Bitcoin attestation if confirmed
+  // Returns true if changed, false if already complete, throws on hard errors
   try {
-    const changed = await Promise.race([
-      OpenTimestamps.upgrade(existingDetached),
+    await Promise.race([
+      OpenTimestamps.upgrade(detachedOts),
       new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout')),20000))
     ]);
+  } catch(e) {
+    if(e.message==='timeout') throw new Error('Calendar did not respond in time');
+    // Other network errors — try verify anyway, proof may already be complete
+  }
 
-    // Serialize the (potentially upgraded) proof
-    const upgradedBytes = new Uint8Array(existingDetached.serializeToBytes());
+  // Verify — takes (detachedOts, detachedOriginal)
+  // Returns { bitcoin: { height, timestamp } } if confirmed, {} if pending
+  try {
+    const results = await OpenTimestamps.verify(detachedOts, detachedOriginal);
 
-    // Check if it now has a Bitcoin attestation
-    const result = extractBitcoinAttestation(upgradedBytes);
-    if(result.confirmed) {
+    if(results && Object.keys(results).length > 0) {
+      // Save the upgraded proof bytes
+      const upgradedBytes = new Uint8Array(detachedOts.serializeToBytes());
+      window._upgradedOTSBytes = upgradedBytes;
+
+      // Extract block height — results.bitcoin.height
+      const btc = results.bitcoin || results[Object.keys(results)[0]];
+      const blockHeight = (btc && typeof btc.height === 'number') ? btc.height : null;
+      return {confirmed: true, blockHeight};
+    }
+
+    // Empty results = still pending
+    return {confirmed: false};
+
+  } catch(e) {
+    // verify() can throw — fall back to raw byte scan on upgraded proof
+    const upgradedBytes = new Uint8Array(detachedOts.serializeToBytes());
+    const scanResult = extractBitcoinAttestation(upgradedBytes);
+    if(scanResult.confirmed) {
       window._upgradedOTSBytes = upgradedBytes;
     }
-    return result;
-  } catch(e) {
-    // upgrade() throws if pending — treat as not yet confirmed
-    if(e.message && (e.message.includes('pending') || e.message.includes('timeout'))) {
-      return {confirmed: false};
-    }
-    throw e;
+    return scanResult;
   }
 }
 
-// Scan upgraded OTS bytes for Bitcoin attestation tag and extract block height
+// Scan OTS bytes for Bitcoin attestation tag and extract block height
+// Bitcoin attestation: tag(8) + 0x08(length=8) + block_height_uint64_LE(8)
 function extractBitcoinAttestation(buf) {
   const BTC_TAG=[0x05,0x88,0x96,0x0d,0x73,0xd7,0x19,0x01];
-  outer: for(let i=0;i<buf.length-16;i++){
+  outer: for(let i=0;i<buf.length-17;i++){
     for(let j=0;j<8;j++) if(buf[i+j]!==BTC_TAG[j]) continue outer;
-    let pos=i+8;
-    // skip length varint
-    while(pos<buf.length && (buf[pos]&0x80)) pos++;
-    pos++;
+    // Found tag — next byte is length (always 0x08), then 8 bytes of block height LE
+    const pos = i+8+1; // skip tag(8) + length byte(1)
     if(pos+8>buf.length) return {confirmed:true,blockHeight:null};
     let height=0n;
     for(let k=0;k<8;k++) height|=BigInt(buf[pos+k])<<BigInt(8*k);
