@@ -4079,7 +4079,8 @@ async function nip46Connect({remotePubkey, relays, secret}) {
       ws.onopen = async () => {
         if(resolved) { ws.close(); return; }
         const subId = 'ck-sub-' + Math.random().toString(36).substring(2,6);
-        ws.send(JSON.stringify(['REQ', subId, {kinds:[24133], '#p':[localPubkeyHex], authors:[remotePubkey], limit:10}]));
+        const since = Math.floor(Date.now()/1000) - 10;
+        ws.send(JSON.stringify(['REQ', subId, {kinds:[24133], '#p':[localPubkeyHex], authors:[remotePubkey], since, limit:10}]));
         await sleep(200);
         if(resolved) { ws.close(); return; }
         const connectPayload = JSON.stringify({id: reqId, method: 'connect', params: [remotePubkey, secret, 'sign_event']});
@@ -4102,7 +4103,7 @@ async function nip46Connect({remotePubkey, relays, secret}) {
           if(!ev || ev.kind !== 24133) return;
           let content;
           try {
-            const plain = await nip44Decrypt(localPrivKey, remotePubkey, ev.content);
+            const plain = await nip46Decrypt(localPrivKey, remotePubkey, ev.content);
             content = JSON.parse(plain);
           } catch(_) {
             try { content = JSON.parse(ev.content); } catch(_) { return; }
@@ -4143,31 +4144,45 @@ async function nip46Connect({remotePubkey, relays, secret}) {
   });
 }
 
-// ── NIP-44 ENCRYPTION / DECRYPTION ──
-// Spec: ECDH (unhashed x) → HKDF(salt='nip44-v2') → ChaCha20 + HMAC-SHA256 + padding + base64
+// ── NIP-44 v2 ENCRYPTION / DECRYPTION ──
 // https://github.com/nostr-protocol/nips/blob/master/44.md
 
 async function nip44GetConversationKey(localPrivKey, remotePubkeyHex) {
   const secp = window.nobleSecp256k1;
-  // ECDH: shared point x-coordinate, unhashed (BIP340 style)
-  const sharedPoint = secp.getSharedSecret(localPrivKey, '02' + remotePubkeyHex, false); // 65 bytes
-  const sharedX = sharedPoint.slice(1, 33); // x-coordinate only, 32 bytes
-
-  // HKDF-extract: PRK = HMAC-SHA256(salt='nip44-v2', IKM=sharedX)
+  // ECDH: x-coordinate of shared point, unhashed (BIP340)
+  const sharedPoint = secp.getSharedSecret(localPrivKey, '02' + remotePubkeyHex, false);
+  const sharedX = sharedPoint.slice(1, 33);
+  // HKDF-extract: PRK = HMAC-SHA256(key=salt, data=IKM)
+  // salt = 'nip44-v2', IKM = sharedX
   const salt = new TextEncoder().encode('nip44-v2');
-  const ikmKey = await crypto.subtle.importKey('raw', sharedX, {name:'HMAC', hash:'SHA-256'}, false, ['sign']);
-  const prk = new Uint8Array(await crypto.subtle.sign('HMAC', ikmKey, salt));
-  return prk; // 32-byte conversation key
+  const saltKey = await crypto.subtle.importKey('raw', salt, {name:'HMAC', hash:'SHA-256'}, false, ['sign']);
+  return new Uint8Array(await crypto.subtle.sign('HMAC', saltKey, sharedX));
 }
 
-async function nip44DeriveKeys(conversationKey, nonce) {
-  // HKDF-expand: derive 76 bytes (32 key + 12 nonce + 32 hmac_key)
-  // Using crypto.subtle HKDF
-  const ckKey = await crypto.subtle.importKey('raw', conversationKey, {name:'HKDF'}, false, ['deriveBits']);
-  const derived = new Uint8Array(await crypto.subtle.deriveBits(
-    {name:'HKDF', hash:'SHA-256', salt: nonce, info: new Uint8Array(0)},
-    ckKey, 76 * 8
-  ));
+async function hmacSha256(key, data) {
+  const k = await crypto.subtle.importKey('raw', key, {name:'HMAC', hash:'SHA-256'}, false, ['sign']);
+  return new Uint8Array(await crypto.subtle.sign('HMAC', k, data));
+}
+
+async function hkdfExpand(prk, info, length) {
+  // HKDF-expand per RFC 5869
+  const n = Math.ceil(length / 32);
+  const okm = new Uint8Array(n * 32);
+  let t = new Uint8Array(0);
+  for(let i = 1; i <= n; i++) {
+    const input = new Uint8Array(t.length + info.length + 1);
+    input.set(t);
+    input.set(info, t.length);
+    input[input.length - 1] = i;
+    t = await hmacSha256(prk, input);
+    okm.set(t, (i - 1) * 32);
+  }
+  return okm.slice(0, length);
+}
+
+async function nip44DeriveMessageKeys(conversationKey, nonce32) {
+  // HKDF-expand(PRK=conversationKey, info=nonce, L=76)
+  const derived = await hkdfExpand(conversationKey, nonce32, 76);
   return {
     chachaKey: derived.slice(0, 32),
     chachaNonce: derived.slice(32, 44),
@@ -4175,100 +4190,84 @@ async function nip44DeriveKeys(conversationKey, nonce) {
   };
 }
 
-function nip44CalcPaddedLen(unpaddedLen) {
-  if(unpaddedLen <= 32) return 32;
-  const nextPower = 1 << (Math.floor(Math.log2(unpaddedLen - 1)) + 1);
-  const chunk = nextPower <= 256 ? 32 : nextPower / 8;
-  return chunk * (Math.floor((unpaddedLen - 1) / chunk) + 1);
-}
-
 function nip44Pad(plaintext) {
   const unpadded = new TextEncoder().encode(plaintext);
-  const unpaddedLen = unpadded.length;
-  if(unpaddedLen < 1 || unpaddedLen > 65535) throw new Error('NIP-44: plaintext too long');
-  const paddedLen = nip44CalcPaddedLen(unpaddedLen);
+  const len = unpadded.length;
+  if(len < 1 || len > 65535) throw new Error('NIP-44: invalid plaintext length');
+  // calc_padded_len
+  let paddedLen;
+  if(len <= 32) { paddedLen = 32; }
+  else {
+    const nextPower = 1 << (Math.floor(Math.log2(len - 1)) + 1);
+    const chunk = nextPower <= 256 ? 32 : nextPower / 8;
+    paddedLen = chunk * (Math.floor((len - 1) / chunk) + 1);
+  }
   const padded = new Uint8Array(2 + paddedLen);
-  // write length as big-endian uint16
-  padded[0] = (unpaddedLen >> 8) & 0xff;
-  padded[1] = unpaddedLen & 0xff;
+  padded[0] = (len >> 8) & 0xff;
+  padded[1] = len & 0xff;
   padded.set(unpadded, 2);
-  // rest is zeros (already zero-initialized)
   return padded;
 }
 
 function nip44Unpad(padded) {
-  const unpaddedLen = (padded[0] << 8) | padded[1];
-  if(unpaddedLen === 0 || padded.length < 2 + unpaddedLen) throw new Error('NIP-44: invalid padding');
-  return new TextDecoder().decode(padded.slice(2, 2 + unpaddedLen));
+  const len = (padded[0] << 8) | padded[1];
+  if(len === 0 || padded.length < 2 + len) throw new Error('NIP-44: invalid padding');
+  return new TextDecoder().decode(padded.slice(2, 2 + len));
 }
 
-// ChaCha20 using Web Crypto — note: browser doesn't have ChaCha20 natively
-// We implement it using the noble-secp256k1 utils or fallback pure JS
-// Actually we need to implement ChaCha20 ourselves since Web Crypto doesn't support it
-function chacha20(key, nonce, data) {
-  // RFC 8439 ChaCha20, counter starting at 0
-  // key: 32 bytes, nonce: 12 bytes, data: Uint8Array
-  const out = new Uint8Array(data.length);
-  const block = new Uint32Array(16);
-  const keyW = new Uint32Array(key.buffer, key.byteOffset, 8);
-  const nonceW = new Uint32Array(nonce.buffer, nonce.byteOffset, 3);
-
-  function rotl(a, b) { return (a << b) | (a >>> (32 - b)); }
-  function quarterRound(s, a, b, c, d) {
-    s[a] = (s[a] + s[b]) | 0; s[d] ^= s[a]; s[d] = rotl(s[d], 16);
-    s[c] = (s[c] + s[d]) | 0; s[b] ^= s[c]; s[b] = rotl(s[b], 12);
-    s[a] = (s[a] + s[b]) | 0; s[d] ^= s[a]; s[d] = rotl(s[d], 8);
-    s[c] = (s[c] + s[d]) | 0; s[b] ^= s[c]; s[b] = rotl(s[b], 7);
+function chacha20Block(key32, nonce12, counter) {
+  // RFC 8439 ChaCha20 block
+  const keyW = new Uint32Array(key32.buffer.slice(key32.byteOffset, key32.byteOffset + 32));
+  const nonceW = new Uint32Array(nonce12.buffer.slice(nonce12.byteOffset, nonce12.byteOffset + 12));
+  const state = new Uint32Array([
+    0x61707865, 0x3320646e, 0x79622d32, 0x6b206574,
+    keyW[0],keyW[1],keyW[2],keyW[3],keyW[4],keyW[5],keyW[6],keyW[7],
+    counter, nonceW[0], nonceW[1], nonceW[2]
+  ]);
+  const w = new Uint32Array(state);
+  const rotl = (a,b) => (a<<b)|(a>>>(32-b));
+  const qr = (s,a,b,c,d) => {
+    s[a]=(s[a]+s[b])|0; s[d]=rotl(s[d]^s[a],16);
+    s[c]=(s[c]+s[d])|0; s[b]=rotl(s[b]^s[c],12);
+    s[a]=(s[a]+s[b])|0; s[d]=rotl(s[d]^s[a],8);
+    s[c]=(s[c]+s[d])|0; s[b]=rotl(s[b]^s[c],7);
+  };
+  for(let i=0;i<10;i++){
+    qr(w,0,4,8,12);qr(w,1,5,9,13);qr(w,2,6,10,14);qr(w,3,7,11,15);
+    qr(w,0,5,10,15);qr(w,1,6,11,12);qr(w,2,7,8,13);qr(w,3,4,9,14);
   }
+  const out = new Uint32Array(16);
+  for(let i=0;i<16;i++) out[i]=(w[i]+state[i])|0;
+  return new Uint8Array(out.buffer);
+}
 
-  let pos = 0;
-  let counter = 0;
-  while(pos < data.length) {
-    // Build block
-    const state = new Uint32Array([
-      0x61707865, 0x3320646e, 0x79622d32, 0x6b206574,
-      keyW[0], keyW[1], keyW[2], keyW[3],
-      keyW[4], keyW[5], keyW[6], keyW[7],
-      counter, nonceW[0], nonceW[1], nonceW[2]
-    ]);
-    const working = new Uint32Array(state);
-    for(let i = 0; i < 10; i++) {
-      quarterRound(working, 0, 4, 8, 12);
-      quarterRound(working, 1, 5, 9, 13);
-      quarterRound(working, 2, 6, 10, 14);
-      quarterRound(working, 3, 7, 11, 15);
-      quarterRound(working, 0, 5, 10, 15);
-      quarterRound(working, 1, 6, 11, 12);
-      quarterRound(working, 2, 7, 8, 13);
-      quarterRound(working, 3, 4, 9, 14);
-    }
-    for(let i = 0; i < 16; i++) working[i] = (working[i] + state[i]) | 0;
-    const keystream = new Uint8Array(working.buffer);
-    const take = Math.min(64, data.length - pos);
-    for(let i = 0; i < take; i++) out[pos + i] = data[pos + i] ^ keystream[i];
-    pos += take;
-    counter++;
+function chacha20(key, nonce, data) {
+  const out = new Uint8Array(data.length);
+  // Copy to aligned buffers
+  const key32 = new Uint8Array(32); key32.set(key);
+  const nonce12 = new Uint8Array(12); nonce12.set(nonce);
+  for(let pos=0,ctr=0; pos<data.length; pos+=64,ctr++) {
+    const block = chacha20Block(key32, nonce12, ctr);
+    const take = Math.min(64, data.length-pos);
+    for(let i=0;i<take;i++) out[pos+i]=data[pos+i]^block[i];
   }
   return out;
 }
 
 async function nip44Encrypt(localPrivKey, remotePubkeyHex, plaintext) {
-  const conversationKey = await nip44GetConversationKey(localPrivKey, remotePubkeyHex);
+  const ck = await nip44GetConversationKey(localPrivKey, remotePubkeyHex);
   const nonce = crypto.getRandomValues(new Uint8Array(32));
-  const {chachaKey, chachaNonce, hmacKey} = await nip44DeriveKeys(conversationKey, nonce);
-
+  const {chachaKey, chachaNonce, hmacKey} = await nip44DeriveMessageKeys(ck, nonce);
   const padded = nip44Pad(plaintext);
   const ciphertext = chacha20(chachaKey, chachaNonce, padded);
-
-  // HMAC-SHA256(key=hmacKey, data=nonce||ciphertext)
-  const macInput = new Uint8Array(nonce.length + ciphertext.length);
-  macInput.set(nonce); macInput.set(ciphertext, nonce.length);
-  const hmacKeyObj = await crypto.subtle.importKey('raw', hmacKey, {name:'HMAC', hash:'SHA-256'}, false, ['sign']);
-  const mac = new Uint8Array(await crypto.subtle.sign('HMAC', hmacKeyObj, macInput));
-
-  // Format: version(1) + nonce(32) + ciphertext(n) + mac(32) → base64
+  // MAC = HMAC-SHA256(hmacKey, nonce || ciphertext)
+  const macData = new Uint8Array(32 + ciphertext.length);
+  macData.set(nonce); macData.set(ciphertext, 32);
+  const hmacKeyObj = await crypto.subtle.importKey('raw', hmacKey, {name:'HMAC',hash:'SHA-256'}, false, ['sign']);
+  const mac = new Uint8Array(await crypto.subtle.sign('HMAC', hmacKeyObj, macData));
+  // Payload: version(1) || nonce(32) || ciphertext || mac(32)
   const payload = new Uint8Array(1 + 32 + ciphertext.length + 32);
-  payload[0] = 2; // version 2
+  payload[0] = 2;
   payload.set(nonce, 1);
   payload.set(ciphertext, 33);
   payload.set(mac, 33 + ciphertext.length);
@@ -4277,32 +4276,51 @@ async function nip44Encrypt(localPrivKey, remotePubkeyHex, plaintext) {
 
 async function nip44Decrypt(localPrivKey, remotePubkeyHex, b64payload) {
   const payload = Uint8Array.from(atob(b64payload), c=>c.charCodeAt(0));
-  if(payload[0] !== 2) throw new Error('NIP-44: unsupported version ' + payload[0]);
+  if(payload[0] !== 2) throw new Error('NIP-44: unsupported version');
   if(payload.length < 99) throw new Error('NIP-44: payload too short');
-
   const nonce = payload.slice(1, 33);
   const ciphertext = payload.slice(33, payload.length - 32);
   const mac = payload.slice(payload.length - 32);
-
-  const conversationKey = await nip44GetConversationKey(localPrivKey, remotePubkeyHex);
-  const {chachaKey, chachaNonce, hmacKey} = await nip44DeriveKeys(conversationKey, nonce);
-
+  const ck = await nip44GetConversationKey(localPrivKey, remotePubkeyHex);
+  const {chachaKey, chachaNonce, hmacKey} = await nip44DeriveMessageKeys(ck, nonce);
   // Verify MAC
-  const macInput = new Uint8Array(32 + ciphertext.length);
-  macInput.set(nonce); macInput.set(ciphertext, 32);
-  const hmacKeyObj = await crypto.subtle.importKey('raw', hmacKey, {name:'HMAC', hash:'SHA-256'}, false, ['sign']);
-  const expectedMac = new Uint8Array(await crypto.subtle.sign('HMAC', hmacKeyObj, macInput));
-  // Constant-time compare
-  let diff = 0;
-  for(let i = 0; i < 32; i++) diff |= mac[i] ^ expectedMac[i];
+  const macData = new Uint8Array(32 + ciphertext.length);
+  macData.set(nonce); macData.set(ciphertext, 32);
+  const hmacKeyObj = await crypto.subtle.importKey('raw', hmacKey, {name:'HMAC',hash:'SHA-256'}, false, ['sign']);
+  const expected = new Uint8Array(await crypto.subtle.sign('HMAC', hmacKeyObj, macData));
+  let diff = 0; for(let i=0;i<32;i++) diff |= mac[i]^expected[i];
   if(diff !== 0) throw new Error('NIP-44: invalid MAC');
-
-  const padded = chacha20(chachaKey, chachaNonce, ciphertext);
-  return nip44Unpad(padded);
+  return nip44Unpad(chacha20(chachaKey, chachaNonce, ciphertext));
 }
 
 
-// Build and sign a Nostr event with the local ephemeral key (for NIP-46 wrapper events)
+// Try to decrypt content — attempt NIP-44 first, fall back to NIP-04
+async function nip46Decrypt(localPrivKey, remotePubkeyHex, content) {
+  // NIP-44: base64 payload starting with version byte 0x02
+  // NIP-04: "base64ciphertext?iv=base64iv" format
+  if(content.includes('?iv=')) {
+    // NIP-04 format
+    return nip04Decrypt(localPrivKey, remotePubkeyHex, content);
+  }
+  try {
+    return await nip44Decrypt(localPrivKey, remotePubkeyHex, content);
+  } catch(_) {
+    // Fall back to NIP-04 if NIP-44 fails
+    return nip04Decrypt(localPrivKey, remotePubkeyHex, content);
+  }
+}
+
+async function nip04Decrypt(localPrivKey, remotePubkeyHex, payload) {
+  const secp = window.nobleSecp256k1;
+  const [b64ct, ivPart] = payload.split('?iv=');
+  if(!b64ct || !ivPart) throw new Error('Invalid NIP-04 payload');
+  const sharedPoint = secp.getSharedSecret(localPrivKey, '02' + remotePubkeyHex, false);
+  const sharedX = sharedPoint.slice(1, 33);
+  const iv = Uint8Array.from(atob(ivPart), c=>c.charCodeAt(0));
+  const ct = Uint8Array.from(atob(b64ct), c=>c.charCodeAt(0));
+  const key = await crypto.subtle.importKey('raw', sharedX, {name:'AES-CBC'}, false, ['decrypt']);
+  return new TextDecoder().decode(await crypto.subtle.decrypt({name:'AES-CBC', iv}, key, ct));
+}
 async function buildAndSignLocalEvent(localPrivKey, localPubkeyHex, remotePubkeyHex, content) {
   const secp = window.nobleSecp256k1;
   const event = {
@@ -4351,7 +4369,8 @@ async function bunkerSignEvent(event) {
 
     ws.onopen = async () => {
       const subId = 'ck-sign-sub-' + Math.random().toString(36).substring(2,6);
-      ws.send(JSON.stringify(['REQ', subId, {kinds:[24133], '#p':[localPubkeyHex], authors:[remotePubkey], limit:5}]));
+      const since = Math.floor(Date.now()/1000) - 10;
+      ws.send(JSON.stringify(['REQ', subId, {kinds:[24133], '#p':[localPubkeyHex], authors:[remotePubkey], since, limit:5}]));
 
       // Send sign_event request
       const payload = JSON.stringify({id: reqId, method: 'sign_event', params: [JSON.stringify(event)]});
@@ -4375,7 +4394,7 @@ async function bunkerSignEvent(event) {
 
         let content;
         try {
-          const plaintext = await nip44Decrypt(localPrivKey, remotePubkey, ev.content);
+          const plaintext = await nip46Decrypt(localPrivKey, remotePubkey, ev.content);
           content = JSON.parse(plaintext);
         } catch(_) {
           try { content = JSON.parse(ev.content); } catch(_) { return; }
