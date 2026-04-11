@@ -52,8 +52,9 @@ Connect a Nostr browser extension (Alby, nos2x, or any NIP-07 compatible signer)
 | 1 — Core | ✅ Complete | SHA-256, OpenTimestamps, age encryption/decrypt, verify |
 | 2 — Nostr | ✅ Complete | Browser extension login, post stamps, stamp history, confirmation announcements |
 | 3 — Signing | 🔨 Next | NIP-46 remote signer support (Nsec Bunker, Amber), mobile layout |
-| 4 — Infrastructure | 📋 Planned | Dedicated Cypher Keep Nostr relay |
-| 5 — Permanence | 📋 Planned | Permanent archival of content and proofs via Arweave |
+| 4 — npub Encryption | 📋 Planned | Encrypt files to any Nostr public key — no shared password needed |
+| 5 — Infrastructure | 📋 Planned | Dedicated Cypher Keep Nostr relay |
+| 6 — Permanence | 📋 Planned | Permanent archival of content and proofs via Arweave |
 
 ---
 

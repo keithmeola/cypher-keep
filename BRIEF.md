@@ -36,13 +36,16 @@ Nostr login via NIP-07 browser extension (Alby, nos2x), post stamps as signed No
 ### Phase 3 — Signing 🔨 Next
 NIP-46 remote signer support — Nsec Bunker, Amber, any NIP-46 compatible signer. Code complete, UI deferred for post-launch testing. Mobile-optimized layout.
 
-### Phase 4 — Infrastructure 📋 Planned
+### Phase 4 — npub Encryption 📋 Planned
+Encrypt any file directly to a Nostr public key using the age encryption format. No shared password — only the recipient's nsec can decrypt it. PGP-style encryption using the Nostr identity layer. Building blocks already in the codebase.
+
+### Phase 5 — Infrastructure 📋 Planned
 Dedicated Cypher Keep Nostr relay — domain-restricted, only accepts CK attestation event kinds, zero content moderation burden. Premium retention tier.
 
-### Phase 5 — Permanence 📋 Planned
+### Phase 6 — Permanence 📋 Planned
 Permanent archival of content and proofs via Arweave permaweb. Hosted convenience tier. CID recorded in Nostr event.
 
-### Phase 6 — Scale (Internal, not public)
+### Phase 7 — Scale (Internal, not public)
 API for developers and organizations. White-label and enterprise consulting.
 
 ## Three core user journeys
