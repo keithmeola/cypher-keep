@@ -1986,7 +1986,7 @@ footer {
           <div class="relay-results" id="nostr-relay-results"></div>
           <div class="btn-row" style="flex-wrap:wrap">
             <a class="btn btn-secondary" id="nostr-event-link" href="#" target="_blank" rel="noopener">View on njump ↗</a>
-            <button class="btn btn-secondary" id="copy-nevent-btn" onclick="copyNevent()">Copy nevent</button>
+            <button class="btn btn-secondary" id="copy-nevent-btn" onclick="copyNevent()">Copy link</button>
             <button class="btn btn-secondary" onclick="downloadMetaJSON()">Download updated metadata JSON</button>
           </div>
         </div>
@@ -2993,8 +2993,9 @@ function downloadMetaJSON() {
     nostr_nevent:window._lastNostrNevent||null,
     nostr_relays:window._lastNostrRelays||null,
     arweave_id:null};
-  dlBlob(new Blob([JSON.stringify(meta,null,2)],{type:'application/json'}),
-    (currentFile?currentFile.name:'content')+'.ckmeta.json');
+  const baseName=(currentFile?currentFile.name:'content');
+  const suffix=window._lastNostrEventId?'.ckmeta.nostr.json':'.ckmeta.json';
+  dlBlob(new Blob([JSON.stringify(meta,null,2)],{type:'application/json'}), baseName+suffix);
   toast('Metadata downloaded');
 }
 
@@ -3010,11 +3011,11 @@ function copySummary() {
     `Stamped:  ${stampedAt||new Date().toISOString()}`,
     '',`SHA-256:  ${currentHash}`,'',
     `OTS Proof: ${otsFilename||'pending'}`,
+    otsB64?`OTS Proof (base64):\n${otsB64}`:'',
     `Calendar:  ${window._calendarUsed||'OpenTimestamps'}`,
     'Status:    Pending Bitcoin block confirmation (~1–2 hours)',
-    '',otsB64?`OTS Proof (base64):\n${otsB64}`:'',
     '',note?`Note: ${note}`:'',
-    '','Verify: https://opentimestamps.org',
+    '','Verify: https://cypherkeep.net',
     '─'.repeat(48)
   ].filter(Boolean).join('\n');
   navigator.clipboard.writeText(lines).then(()=>{
@@ -3437,10 +3438,12 @@ function confirmedHTML(hash, proof, attestation, calUrl) {
       This content existed prior to Bitcoin block ${blockStr}.${timeStr}<br><br>
       <strong>Calendar:</strong> ${escHtml(calShort)}<br>
       <strong>Hash:</strong> <code style="font-family:var(--font-mono);font-size:13px;color:var(--purple-lt)">${hash.substring(0,16)}…${hash.substring(48)}</code><br>
-      <strong>Proof:</strong> ${escHtml(proof||'provided')}<br>
-      <span style="font-size:13px;color:var(--text-tertiary);cursor:pointer;user-select:none" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'block':'none';this.textContent=this.textContent.includes('▶')?'▼ Hide proof (base64)':'▶ Show proof (base64)'">▶ Show proof (base64)</span>
-      <div style="display:none;margin-top:6px;padding:8px;background:var(--bg-input);border-radius:6px;border:1px solid var(--border)"><code style="font-family:var(--font-mono);font-size:11px;color:var(--text-tertiary);word-break:break-all;line-height:1.6">${window._upgradedOTSBytes?uint8ToBase64(window._upgradedOTSBytes):(verifyOTS?uint8ToBase64(verifyOTS):'—')}</code></div>
+      <strong>Proof:</strong> ${escHtml(proof||'provided')}
     </p>
+    <div style="margin-bottom:12px;text-align:left">
+      <span style="font-size:13px;color:var(--text-tertiary);cursor:pointer;user-select:none" onclick="var d=this.nextElementSibling;d.style.display=d.style.display==='none'?'block':'none';this.textContent=this.textContent.includes('▶')?'▼ Hide proof (base64)':'▶ Show proof (base64)'">▶ Show proof (base64)</span>
+      <div style="display:none;margin-top:6px;padding:8px;background:var(--bg-input);border-radius:6px;border:1px solid var(--border)"><code style="font-family:var(--font-mono);font-size:11px;color:var(--text-tertiary);word-break:break-all;line-height:1.6">${window._upgradedOTSBytes?uint8ToBase64(window._upgradedOTSBytes):(verifyOTS?uint8ToBase64(verifyOTS):'—')}</code></div>
+    </div>
     <div class="btn-row" style="margin-top:12px;flex-wrap:wrap;justify-content:center">
       <a class="btn btn-secondary" href="${explorerUrl}" target="_blank" rel="noopener">View block ↗</a>
       <button class="btn btn-secondary" onclick="downloadUpgradedOTS('${escHtml(proofBase)}')">Download upgraded .ots</button>
@@ -3465,7 +3468,11 @@ function pendingAttestHTML(msg) {
 }
 
 function okHTML(hash,proof) {
-  return `<div class="verify-ok"><div class="verify-ok-icon"><svg viewBox="0 0 48 48" fill="none"><circle cx="24" cy="24" r="22" stroke="#22c55e" stroke-width="1.5"/><polyline points="14,24 21,31 34,16" stroke="#22c55e" stroke-width="2" fill="none" stroke-linecap="round"/></svg></div><h2>PROOF VERIFIED</h2><p>This content is unaltered since it was stamped.<br><br>Hash: <code style="font-family:var(--font-mono);font-size: 13px;color:var(--purple-lt)">${hash.substring(0,16)}...${hash.substring(48)}</code><br>Proof: ${proof||'provided'}</p></div>`;
+  const b64 = verifyOTS ? uint8ToBase64(verifyOTS) : null;
+  const b64Section = b64
+    ? `<div style="margin-top:8px;text-align:left"><span style="font-size:13px;color:var(--text-tertiary);cursor:pointer;user-select:none" onclick="var d=this.nextElementSibling;d.style.display=d.style.display==='none'?'block':'none';this.textContent=this.textContent.includes('▶')?'▼ Hide proof (base64)':'▶ Show proof (base64)'">▶ Show proof (base64)</span><div style="display:none;margin-top:6px;padding:8px;background:var(--bg-input);border-radius:6px;border:1px solid var(--border)"><div style="font-size:11px;color:var(--text-disabled);margin-bottom:4px">Pending proof — not yet Bitcoin confirmed</div><code style="font-family:var(--font-mono);font-size:11px;color:var(--text-tertiary);word-break:break-all;line-height:1.6">${b64}</code></div></div>`
+    : '';
+  return `<div class="verify-ok"><div class="verify-ok-icon"><svg viewBox="0 0 48 48" fill="none"><circle cx="24" cy="24" r="22" stroke="#22c55e" stroke-width="1.5"/><polyline points="14,24 21,31 34,16" stroke="#22c55e" stroke-width="2" fill="none" stroke-linecap="round"/></svg></div><h2>PROOF VERIFIED</h2><p>This content is unaltered since it was stamped.<br><br>Hash: <code style="font-family:var(--font-mono);font-size: 13px;color:var(--purple-lt)">${hash.substring(0,16)}...${hash.substring(48)}</code><br>Proof: ${proof||'provided'}</p>${b64Section}</div>`;
 }
 
 function failHTML(msg) {
@@ -3655,6 +3662,20 @@ async function announceStampConfirmation() {
     const results=await publishToRelays(signed,relays);
     const ok=results.filter(r=>r.ok).length;
     btn.textContent=`Published to ${ok}/${results.length} relays ✓`;
+    // Show post-publish buttons
+    const confirmId=signed.id;
+    const wrap=document.getElementById('stamp-nostr-confirm-btn-wrap');
+    if(wrap) {
+      const postBtns=document.createElement('div');
+      postBtns.className='btn-row';
+      postBtns.style.cssText='flex-wrap:wrap;margin-top:10px';
+      postBtns.innerHTML=`
+        <a class="btn btn-secondary" href="https://njump.me/${confirmId}" target="_blank" rel="noopener">View on njump ↗</a>
+        <button class="btn btn-secondary" onclick="navigator.clipboard.writeText('https://njump.me/${confirmId}').then(()=>toast('Link copied'))">Copy link</button>
+        <button class="btn btn-secondary" onclick="downloadStampConfirmedMetaJSON()">Download metadata JSON</button>
+      `;
+      wrap.appendChild(postBtns);
+    }
     toast('Confirmation announced on Nostr ✓');
   } catch(e) {
     btn.disabled=false; btn.textContent='Announce confirmation on Nostr';
@@ -3833,6 +3854,17 @@ async function announceConfirmation(hash, calendar, proofName, blockHeight, bloc
     const results=await publishToRelays(signed,relays);
     const ok=results.filter(r=>r.ok).length;
     btn.textContent=`Published to ${ok}/${results.length} relays ✓`;
+    // Show post-publish buttons below the announce button
+    const confirmId=signed.id;
+    const postBtns=document.createElement('div');
+    postBtns.className='btn-row';
+    postBtns.style.cssText='flex-wrap:wrap;margin-top:10px';
+    postBtns.innerHTML=`
+      <a class="btn btn-secondary" href="https://njump.me/${confirmId}" target="_blank" rel="noopener">View on njump ↗</a>
+      <button class="btn btn-secondary" onclick="navigator.clipboard.writeText('https://njump.me/${confirmId}').then(()=>toast('Link copied'))">Copy link</button>
+      <button class="btn btn-secondary" onclick="downloadVerifyMetaJSON(${blockHeight||'null'},'${escHtml(calendar)}','${escHtml(hash)}','${escHtml(proofName||'')}',${blockTimestamp||'null'})">Download metadata JSON</button>
+    `;
+    btn.parentNode.appendChild(postBtns);
     toast('Confirmation announced on Nostr ✓');
   } catch(e) {
     btn.disabled=false;
@@ -4532,13 +4564,14 @@ function renderHoverCardRelays() {
 }
 
 function copyNevent() {
-  const nevent=window._lastNostrNevent;
-  if(!nevent){toast('No event available',true);return;}
-  navigator.clipboard.writeText(nevent).then(()=>{
+  const eventId=window._lastNostrEventId;
+  if(!eventId){toast('No event available',true);return;}
+  const url=`https://njump.me/${eventId}`;
+  navigator.clipboard.writeText(url).then(()=>{
     const btn=document.getElementById('copy-nevent-btn');
     btn.textContent='Copied!';
-    setTimeout(()=>btn.textContent='Copy nevent',1500);
-    toast('nevent copied');
+    setTimeout(()=>btn.textContent='Copy link',1500);
+    toast('Link copied');
   });
 }
 
