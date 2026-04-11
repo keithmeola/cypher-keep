@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Cypher Keep — Cryptographic Content Authentication</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 30' fill='none'%3E%3Crect width='30' height='30' rx='6' fill='%230d0f1a'/%3E%3Cpolygon points='15,2 27,8.5 27,21.5 15,28 3,21.5 3,8.5' stroke='%237c3aed' stroke-width='1.2' fill='rgba(124,58,237,0.07)'/%3E%3Crect x='10.5' y='10' width='9' height='7.5' rx='0.5' stroke='%237c3aed' stroke-width='1' fill='none'/%3E%3Crect x='12.5' y='7.5' width='5' height='3' rx='0.5' stroke='%237c3aed' stroke-width='0.9' fill='none'/%3E%3Ccircle cx='15' cy='14' r='1.2' fill='%23f7931a'/%3E%3Cline x1='15' y1='15.2' x2='15' y2='17.2' stroke='%23f7931a' stroke-width='0.9'/%3E%3C/svg%3E">
 <!-- age-encryption v0.2.4 by Filippo Valsorda — inlined for offline use, BSD-3-Clause -->
 <!-- https://github.com/FiloSottile/typage -->
 <!-- OTS library loaded below — replace with inlined version for full offline support -->
@@ -228,8 +229,8 @@ header {
 }
 
 .logo-mark {
-  width: 30px;
-  height: 30px;
+  width: 36px;
+  height: 36px;
   flex-shrink: 0;
 }
 
@@ -2007,8 +2008,18 @@ footer {
   <p style="font-size: 13px;font-weight:600;text-transform:uppercase;letter-spacing:0.07em;color:var(--text-disabled);margin-bottom:14px">Coming in next phases</p>
 
   <div class="coming-grid">
-    <div class="coming-card full">
+    <div class="coming-card">
       <div class="coming-badge">Phase 3</div>
+      <h3>Remote signing</h3>
+      <p>Connect via Nsec Bunker or any NIP-46 compatible remote signer. Your key stays on your device — CK only requests signing of stamp events.</p>
+    </div>
+    <div class="coming-card">
+      <div class="coming-badge">Phase 4</div>
+      <h3>Cypher Keep relay</h3>
+      <p>A dedicated Nostr relay for CK stamp events. Domain-restricted, purpose-built, with premium retention tiers.</p>
+    </div>
+    <div class="coming-card full">
+      <div class="coming-badge">Phase 5</div>
       <h3>Arweave archival</h3>
       <p>Archive your content and confirmed .ots proof to the Arweave permaweb. One-time fee, stored forever. Transaction ID recorded in your Nostr event for a complete, permanent chain of custody.</p>
     </div>
@@ -2556,6 +2567,23 @@ footer {
     </div>
   </div>
 
+  <!-- Journalist -->
+  <div class="card" style="margin-bottom:12px">
+    <div class="card-body">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+        <span style="font-size:11px;font-weight:600;letter-spacing:0.07em;text-transform:uppercase;color:#22c55e;border:1px solid rgba(34,197,94,0.3);border-radius:4px;padding:2px 8px">Journalist</span>
+        <span style="font-size:15px;font-weight:600;color:var(--text-primary)">Authenticating sources and documents</span>
+      </div>
+      <p style="font-size:14px;color:var(--text-secondary);line-height:1.8;margin-bottom:12px">You've received a document, leak, or tip. You need to prove it existed in this exact form at this exact moment — before publication, before anyone can claim it was fabricated or altered after the fact.</p>
+      <ol style="font-size:14px;color:var(--text-secondary);line-height:2;padding-left:18px;margin:0">
+        <li>Stamp the document immediately upon receipt — before opening it in any other application</li>
+        <li>Download the <code style="font-family:var(--font-mono);font-size:12px;color:var(--purple-lt);background:var(--bg-input);padding:1px 5px;border-radius:3px">.ots</code> proof and metadata JSON — store copies in separate locations</li>
+        <li>Optionally encrypt the document with a strong password before storing or transmitting it</li>
+        <li>After Bitcoin confirmation, download the upgraded proof — the timestamp is now permanent and independently verifiable by anyone, including editors, lawyers, or the public</li>
+      </ol>
+    </div>
+  </div>
+
   <!-- Sender -->
   <div class="card" style="margin-bottom:28px">
     <div class="card-body">
@@ -2951,7 +2979,7 @@ function downloadMetaJSON() {
   if(!currentHash)return;
   const cal=window._calendarUsed||'OpenTimestamps';
   const otsB64=otsBytes?uint8ToBase64(otsBytes):null;
-  const meta={tool:'Cypher Keep',version:'0.2.5',phase:2,
+  const meta={tool:'Cypher Keep',version:'0.3.0',
     file:currentFile?{name:currentFile.name,size:currentFile.size,type:currentFile.type||'unknown'}:null,
     sha256:currentHash,timestamp:stampedAt||new Date().toISOString(),
     ots_file:otsFilename||null,
@@ -2973,6 +3001,7 @@ function downloadMetaJSON() {
 function copySummary() {
   if(!currentHash)return;
   const note=document.getElementById('note-input').value.trim();
+  const otsB64=otsBytes?uint8ToBase64(otsBytes):null;
   const lines=[
     'CYPHER KEEP — CONTENT AUTHENTICATION RECORD',
     '─'.repeat(48),'',
@@ -2983,6 +3012,7 @@ function copySummary() {
     `OTS Proof: ${otsFilename||'pending'}`,
     `Calendar:  ${window._calendarUsed||'OpenTimestamps'}`,
     'Status:    Pending Bitcoin block confirmation (~1–2 hours)',
+    '',otsB64?`OTS Proof (base64):\n${otsB64}`:'',
     '',note?`Note: ${note}`:'',
     '','Verify: https://opentimestamps.org',
     '─'.repeat(48)
@@ -3407,7 +3437,9 @@ function confirmedHTML(hash, proof, attestation, calUrl) {
       This content existed prior to Bitcoin block ${blockStr}.${timeStr}<br><br>
       <strong>Calendar:</strong> ${escHtml(calShort)}<br>
       <strong>Hash:</strong> <code style="font-family:var(--font-mono);font-size:13px;color:var(--purple-lt)">${hash.substring(0,16)}…${hash.substring(48)}</code><br>
-      <strong>Proof:</strong> ${escHtml(proof||'provided')}
+      <strong>Proof:</strong> ${escHtml(proof||'provided')}<br>
+      <span style="font-size:13px;color:var(--text-tertiary);cursor:pointer;user-select:none" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'block':'none';this.textContent=this.textContent.includes('▶')?'▼ Hide proof (base64)':'▶ Show proof (base64)'">▶ Show proof (base64)</span>
+      <div style="display:none;margin-top:6px;padding:8px;background:var(--bg-input);border-radius:6px;border:1px solid var(--border)"><code style="font-family:var(--font-mono);font-size:11px;color:var(--text-tertiary);word-break:break-all;line-height:1.6">${window._upgradedOTSBytes?uint8ToBase64(window._upgradedOTSBytes):(verifyOTS?uint8ToBase64(verifyOTS):'—')}</code></div>
     </p>
     <div class="btn-row" style="margin-top:12px;flex-wrap:wrap;justify-content:center">
       <a class="btn btn-secondary" href="${explorerUrl}" target="_blank" rel="noopener">View block ↗</a>
@@ -3451,7 +3483,7 @@ function downloadUpgradedOTS(proofBase) {
 function downloadVerifyMetaJSON(blockHeight, calendar, hash, proofName, blockTimestamp) {
   const otsB64=window._upgradedOTSBytes?uint8ToBase64(window._upgradedOTSBytes):(verifyOTS?uint8ToBase64(verifyOTS):null);
   const meta={
-    tool:'Cypher Keep',version:'0.2.5',phase:2,
+    tool:'Cypher Keep',version:'0.3.0',
     sha256:hash,
     ots_file:proofName||null,
     ots_proof_base64:otsB64,
@@ -3525,6 +3557,14 @@ async function checkStampConfirmation() {
           <a href="${explorerUrl}" target="_blank" rel="noopener" style="font-size:13px;color:var(--orange);font-weight:600">Block #${bh} ↗</a>
         </div>`;
       document.getElementById('stamp-confirmed-btns').style.display='flex';
+      // Show collapsible base64 proof
+      const b64 = window._upgradedOTSBytes ? uint8ToBase64(window._upgradedOTSBytes) : (otsBytes ? uint8ToBase64(otsBytes) : null);
+      if(b64) {
+        const b64El = document.createElement('div');
+        b64El.style.cssText = 'margin-top:10px;padding-top:10px;border-top:1px solid var(--border)';
+        b64El.innerHTML = `<span style="font-size:13px;color:var(--text-tertiary);cursor:pointer;user-select:none" onclick="var d=this.nextElementSibling;d.style.display=d.style.display==='none'?'block':'none';this.textContent=this.textContent.includes('▶')?'▼ Hide proof (base64)':'▶ Show proof (base64)'">▶ Show proof (base64)</span><div style="display:none;margin-top:6px;padding:8px;background:var(--bg-input);border-radius:6px;border:1px solid var(--border)"><code style="font-family:var(--font-mono);font-size:11px;color:var(--text-tertiary);word-break:break-all;line-height:1.6">${b64}</code></div>`;
+        resultEl.appendChild(b64El);
+      }
       btn.textContent='Confirmed ✓';
       toast('BITCOIN CONFIRMED ✓');
       if(window._lastNostrEventId){
@@ -3544,6 +3584,7 @@ async function checkStampConfirmation() {
 function copyConfirmedSummary() {
   if(!currentHash) return;
   const bh=window._stampConfirmedBlock;
+  const otsB64=window._upgradedOTSBytes?uint8ToBase64(window._upgradedOTSBytes):(otsBytes?uint8ToBase64(otsBytes):null);
   const lines=[
     'CYPHER KEEP — CONFIRMED CONTENT AUTHENTICATION',
     '─'.repeat(48),'',
@@ -3555,8 +3596,9 @@ function copyConfirmedSummary() {
     `Calendar:  ${window._calendarUsed||'OpenTimestamps'}`,
     `Bitcoin Block: ${bh||'unknown'}`,
     bh?`Explorer:  https://mempool.space/block-height/${bh}`:'',
+    '',otsB64?`OTS Proof (base64):\n${otsB64}`:'',
     '',
-    'Verify: https://keithmeola.github.io/cypher-keep/',
+    'Verify: https://cypherkeep.net',
     '─'.repeat(48)
   ].filter(l=>l!==undefined&&(l!==''||true)).join('\n');
   navigator.clipboard.writeText(lines).then(()=>{
@@ -3572,7 +3614,7 @@ function downloadStampConfirmedMetaJSON() {
   const bh=window._stampConfirmedBlock;
   const otsB64=window._upgradedOTSBytes?uint8ToBase64(window._upgradedOTSBytes):(otsBytes?uint8ToBase64(otsBytes):null);
   const meta={
-    tool:'Cypher Keep',version:'0.2.5',phase:2,
+    tool:'Cypher Keep',version:'0.3.0',
     file:currentFile?{name:currentFile.name,size:currentFile.size,type:currentFile.type||'unknown'}:null,
     sha256:currentHash,
     timestamp:stampedAt||new Date().toISOString(),
@@ -3603,7 +3645,7 @@ async function announceStampConfirmation() {
     if(!replyId) throw new Error('No Nostr event to reply to');
     const blockStr=blockHeight?`#${blockHeight}`:'a Bitcoin block';
     const explorerUrl=blockHeight?`https://mempool.space/block-height/${blockHeight}`:'https://mempool.space';
-    const content=`✅ Bitcoin timestamp CONFIRMED\n\nThis stamp has been committed to Bitcoin block ${blockStr}.\n${explorerUrl}\n\nHash: ${currentHash||''}\nProof: ${otsFilename||''}\n\nVerify: https://keithmeola.github.io/cypher-keep/\n\n🔑💾 Cypher Keep — Content Authentication`;
+    const content=`✅ Bitcoin timestamp CONFIRMED\n\nThis stamp has been committed to Bitcoin block ${blockStr}.\n${explorerUrl}\n\nHash: ${currentHash||''}\nProof: ${otsFilename||''}\n\nVerify: https://cypherkeep.net\n\n🔑💾 Cypher Keep — Content Authentication`;
     const event={kind:1,created_at:Math.floor(Date.now()/1000),
       tags:[['e',replyId,'','reply'],['p',nostrPubkey],['t','cypherkeep'],['t','bitcoin'],['sha256',currentHash||'']],
       content,pubkey:nostrPubkey};
@@ -3677,7 +3719,7 @@ function buildConfirmContent(hash, calendar, proofName, blockHeight, blockTimest
     '',
     `OTS Proof (confirmed, base64): ${otsB64}`,
     '',
-    `Verify: https://keithmeola.github.io/cypher-keep/`
+    `Verify: https://cypherkeep.net`
   ].join('\n');
 
   const header='✅ Cypher Keep — Timestamp CONFIRMED';
@@ -4614,7 +4656,7 @@ function buildNostrContent() {
     '',
     `OTS Proof (pending, base64): ${otsB64}`,
     '',
-    `Verify stamp: https://keithmeola.github.io/cypher-keep/`,
+    `Verify stamp: https://cypherkeep.net`,
     `Verify OTS: https://opentimestamps.org`
   ].join('\n');
 
