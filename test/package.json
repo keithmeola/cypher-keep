@@ -1,0 +1,10 @@
+{
+  "name": "cypher-keep-tests",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Test suite for Cypher Keep. The app itself has no dependencies; these tests do.",
+  "scripts": { "test": "node run.js" },
+  "optionalDependencies": {
+    "javascript-opentimestamps": "^0.4.9"
+  }
+}
