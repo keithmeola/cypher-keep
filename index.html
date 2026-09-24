@@ -2754,6 +2754,7 @@ let decFile=null, decryptedBlob=null, decryptedName=null;
 // Nostr state
 let nostrPubkey=null;
 let lastPostedEventId=null;
+const CK_VERSION='0.3.3';
 const NOSTR_RELAYS=['wss://relay.damus.io','wss://nos.lol','wss://relay.nostr.band'];
 const NOSTR_TAG='cypherkeep';
 
@@ -2984,7 +2985,7 @@ function downloadMetaJSON() {
   if(!currentHash)return;
   const cal=window._calendarUsed||'OpenTimestamps';
   const otsB64=otsBytes?uint8ToBase64(otsBytes):null;
-  const meta={tool:'Cypher Keep',version:'0.3.0',
+  const meta={tool:'Cypher Keep',version:CK_VERSION,
     file:currentFile?{name:currentFile.name,size:currentFile.size,type:currentFile.type||'unknown'}:null,
     sha256:currentHash,timestamp:stampedAt||new Date().toISOString(),
     ots_file:otsFilename||null,
@@ -3217,58 +3218,63 @@ function checkVerifyReady() {
 }
 
 async function doVerify() {
-  const hash=verifyHash||document.getElementById('v-hash-input').value.trim().toLowerCase();
+  const hash=(verifyHash||document.getElementById('v-hash-input').value.trim().toLowerCase());
   const el=document.getElementById('verify-result');
   el.innerHTML='';
   el.classList.add('show');
 
-  if(!verifyOTS||verifyOTS.length<65){
+  if(!/^[0-9a-f]{64}$/.test(hash)){
+    el.innerHTML=failHTML('No valid SHA-256 hash to check against.');
+    return;
+  }
+  if(!verifyOTS||verifyOTS.length<33){
     el.innerHTML=failHTML('Invalid .ots file — too short or malformed.');
     return;
   }
 
-  // Step 1: check hash matches what's in the OTS file
-  const otsHash=Array.from(verifyOTS.slice(33,65)).map(b=>b.toString(16).padStart(2,'0')).join('');
-  if(otsHash!==hash){
-    el.innerHTML=failHTML('HASH MISMATCH. The content does not match this proof. Either the content has been modified, or the wrong proof file was provided.');
+  el.innerHTML=pendingCheckHTML();
+  toast('Checking proof…');
+
+  const calUrl=parseCalendarUrl(verifyOTS);
+  const calShort=(calUrl||'opentimestamps.org').replace('https://','').replace(/\/$/,'');
+
+  let r;
+  try {
+    r=await verifyOTSProof(hash, verifyOTS);
+  } catch(e) {
+    el.innerHTML=failHTML('Verification could not be completed: '+escHtml(e.message||'unknown error'));
     toast('VERIFICATION FAILED',true);
     return;
   }
 
-  // Step 2: hash matches — now check Bitcoin confirmation via calendar
-  el.innerHTML=pendingCheckHTML();
-  toast('Hash verified — checking Bitcoin confirmation…');
-
-  const calUrl=parseCalendarUrl(verifyOTS);
-  if(!calUrl){
-    el.innerHTML=okHTML(hash,verifyOTSName)+pendingAttestHTML('Could not parse calendar URL from proof file. Check confirmation manually at opentimestamps.org.');
+  if(r.status==='confirmed'){
+    el.innerHTML=confirmedHTML(hash, verifyOTSName,
+      {confirmed:true, blockHeight:r.blockHeight, blockTimestamp:r.blockTimestamp},
+      calUrl||'opentimestamps.org');
+    toast('BITCOIN CONFIRMED ✓');
+    if(nostrPubkey){
+      autoFillConfirmNevent(hash).then(()=>{
+        updateConfirmPreview(hash, calShort, verifyOTSName||'', r.blockHeight, r.blockTimestamp);
+      });
+    }
     return;
   }
 
-  try {
-  const attestation=await checkCalendarConfirmation(hash, calUrl);
-  if(attestation && attestation.confirmed){
-    el.innerHTML=confirmedHTML(hash, verifyOTSName, attestation, calUrl||'opentimestamps.org');
-    toast('BITCOIN CONFIRMED ✓');
-    // Auto-fill nevent and update preview after DOM is ready
-    if(nostrPubkey){
-      const calShort=(calUrl||'opentimestamps.org').replace('https://','').replace(/\/$/,'');
-      autoFillConfirmNevent(hash).then(()=>{
-        updateConfirmPreview(hash, calShort, verifyOTSName||'', attestation.blockHeight, attestation.blockTimestamp);
-      });
-    }
-    } else {
-      el.innerHTML=okHTML(hash,verifyOTSName)+pendingAttestHTML('Your hash is verified in the proof file but the Bitcoin timestamp is still pending. The calendar has not yet committed to a block. Check back in a few hours.');
-    }
-  } catch(e){
-    const msg=e.message||'';
-    const isCorsProblem=msg.toLowerCase().includes('failed to fetch')||msg.toLowerCase().includes('networkerror')||msg.toLowerCase().includes('cors');
-    if(isCorsProblem){
-      el.innerHTML=okHTML(hash,verifyOTSName)+pendingAttestHTML('Hash verified locally. Could not reach the calendar server — check your connection and try again, or verify at <a href="https://opentimestamps.org" target="_blank" style="color:var(--purple-lt)">opentimestamps.org</a>.');
-    } else {
-      el.innerHTML=okHTML(hash,verifyOTSName)+pendingAttestHTML('Hash verified. Calendar check failed: '+escHtml(msg)+'. Try again or check at opentimestamps.org.');
-    }
+  if(r.status==='failed'){
+    el.innerHTML=failHTML(r.message);
+    toast('VERIFICATION FAILED',true);
+    return;
   }
+
+  if(r.status==='unverified'){
+    el.innerHTML=unverifiedHTML(hash, verifyOTSName, r.message, r.claimedHeight);
+    toast(r.claimedHeight?'COULD NOT VERIFY CLAIM':'Could not verify',true);
+    return;
+  }
+
+  // pending — proof is valid and binds to the content, block not mined yet
+  el.innerHTML=okHTML(hash,verifyOTSName)+pendingAttestHTML(r.message);
+  toast('Proof valid — Bitcoin timestamp pending');
 }
 
 // Parse the calendar URL from OTS binary
@@ -3292,86 +3298,152 @@ function parseCalendarUrl(ots) {
 }
 
 // Check calendar confirmation using the OpenTimestamps library
-async function checkCalendarConfirmation(hash, calUrl) {
-  if(typeof OpenTimestamps === 'undefined') {
-    throw new Error('OpenTimestamps library not loaded — check your connection');
+// ── PROOF VERIFICATION ──
+// The OpenTimestamps library is the SOLE authority on whether a proof is valid.
+// There is deliberately no byte-scanning fallback: scanning for the Bitcoin
+// attestation magic bytes proves only that those bytes appear somewhere in the
+// file, not that a valid Merkle path leads to them. Any uncertainty resolves to
+// NOT CONFIRMED. This function never reports 'confirmed' on a guess.
+//
+// Returns: { status, blockHeight, blockTimestamp, claimedHeight, reason, message }
+//   'confirmed'  — library verified a Bitcoin attestation end to end
+//   'pending'    — proof binds to the hash, no Bitcoin attestation yet (normal, ~1-2h)
+//   'unverified' — could not complete verification. If claimedHeight is set, the
+//                  proof ASSERTS a block but that assertion was not validated.
+//   'failed'     — proof is malformed, or does not commit to this hash
+
+function bytesToHexStr(u8) {
+  return Array.from(u8).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+// Does the parsed proof tree contain a Bitcoin attestation, and what block does
+// it claim? Walks the library's attestation map — never raw bytes. Returns
+// {claims:false} if we cannot tell, so an unknown shape is never treated as proof.
+function proofClaimsBitcoin(detachedOts) {
+  try {
+    const ts = detachedOts && detachedOts.timestamp;
+    if (!ts || typeof ts.allAttestations !== 'function') return {claims:false, height:null};
+    const atts = ts.allAttestations();
+    if (!atts || typeof atts.forEach !== 'function') return {claims:false, height:null};
+    let claims = false, height = null;
+    atts.forEach(att => {
+      if (!att) return;
+      const name = (att.constructor && att.constructor.name) || '';
+      const isBtc = name.indexOf('Bitcoin') !== -1 || typeof att.height === 'number';
+      if (isBtc) {
+        claims = true;
+        if (typeof att.height === 'number' && height === null) height = att.height;
+      }
+    });
+    return {claims, height};
+  } catch(_) {
+    return {claims:false, height:null};
+  }
+}
+
+function looksLikeNetworkError(msg) {
+  const m = String(msg || '').toLowerCase();
+  return m.includes('failed to fetch') || m.includes('networkerror') ||
+         m.includes('cors') || m.includes('timeout') || m.includes('network') ||
+         m.includes('load failed');
+}
+
+async function verifyOTSProof(hash, otsInput) {
+  if (typeof OpenTimestamps === 'undefined') {
+    return {status:'unverified', reason:'library-missing', claimedHeight:null,
+            message:'The OpenTimestamps library could not be loaded, so this proof cannot be checked. Nothing has been verified. Check your connection or any content blockers and try again.'};
   }
 
-  const otsToUpgrade = verifyOTS || otsBytes;
-  if(!otsToUpgrade) throw new Error('No OTS proof available');
+  const otsBytesIn = otsInput || verifyOTS || otsBytes;
+  if (!otsBytesIn) {
+    return {status:'failed', reason:'no-proof', claimedHeight:null,
+            message:'No proof file provided.'};
+  }
 
-  // Deserialize the .ots proof
-  const detachedOts = OpenTimestamps.DetachedTimestampFile.deserialize(
-    Array.from(otsToUpgrade)
-  );
+  // Parse. A file that will not deserialize is not a proof.
+  let detachedOts;
+  try {
+    detachedOts = OpenTimestamps.DetachedTimestampFile.deserialize(Array.from(otsBytesIn));
+  } catch(e) {
+    return {status:'failed', reason:'malformed', claimedHeight:null,
+            message:'This file is not a valid OpenTimestamps proof — it could not be parsed.'};
+  }
 
-  // Build the original file's detached timestamp (from just the hash)
+  // Hash binding, read from the PARSED structure rather than a fixed byte offset.
+  try {
+    const digest = bytesToHexStr(new Uint8Array(detachedOts.fileDigest()));
+    if (digest !== hash) {
+      return {status:'failed', reason:'hash-mismatch', claimedHeight:null,
+              message:'HASH MISMATCH. This proof is for different content. Either the content was modified, or this is the wrong proof file.'};
+    }
+  } catch(e) {
+    return {status:'failed', reason:'no-digest', claimedHeight:null,
+            message:'Could not read the content hash from this proof file.'};
+  }
+
   const hashBytes = hexToBytes(hash);
   const op = new OpenTimestamps.Ops.OpSHA256();
   const detachedOriginal = OpenTimestamps.DetachedTimestampFile.fromHash(op, hashBytes);
 
-  // Upgrade — contacts calendar, fills in Bitcoin attestation if confirmed
-  // Returns true if changed, false if already complete, throws on hard errors
+  // Upgrade: ask the calendar to fill in the Bitcoin attestation if it exists.
+  // Failure here is not fatal — the proof may already be complete.
+  let upgradeNetworkFailed = false;
   try {
     await Promise.race([
       OpenTimestamps.upgrade(detachedOts),
-      new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout')),20000))
+      new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 20000))
     ]);
   } catch(e) {
-    if(e.message==='timeout') throw new Error('Calendar did not respond in time');
-    // Other network errors — try verify anyway, proof may already be complete
+    upgradeNetworkFailed = true;
   }
 
-  // Verify — takes (detachedOts, detachedOriginal)
-  // Returns { bitcoin: { height, timestamp } } if confirmed, {} if pending
+  const claim = proofClaimsBitcoin(detachedOts);
+
+  // Verify. This is the only thing that can produce 'confirmed'.
+  let results = null, verifyThrew = null;
   try {
-    const results = await OpenTimestamps.verify(detachedOts, detachedOriginal);
-
-    if(results && Object.keys(results).length > 0) {
-      const upgradedBytes = new Uint8Array(detachedOts.serializeToBytes());
-      window._upgradedOTSBytes = upgradedBytes;
-      const btc = results.bitcoin || results[Object.keys(results)[0]];
-      const blockHeight = (btc && typeof btc.height === 'number') ? btc.height : null;
-      const blockTimestamp = (btc && typeof btc.timestamp === 'number') ? btc.timestamp : null;
-      return {confirmed: true, blockHeight, blockTimestamp};
-    }
-
-    // verify() returned {} — still pending via library. Try raw byte scan as fallback
-    // (handles edge cases where the library doesn't surface the attestation)
-    const upgradedBytes = new Uint8Array(detachedOts.serializeToBytes());
-    const scanResult = extractBitcoinAttestation(upgradedBytes);
-    if(scanResult.confirmed) {
-      window._upgradedOTSBytes = upgradedBytes;
-      return scanResult;
-    }
-
-    return {confirmed: false};
-
+    results = await OpenTimestamps.verify(detachedOts, detachedOriginal);
   } catch(e) {
-    // verify() can throw — fall back to raw byte scan on upgraded proof
-    const upgradedBytes = new Uint8Array(detachedOts.serializeToBytes());
-    const scanResult = extractBitcoinAttestation(upgradedBytes);
-    if(scanResult.confirmed) {
-      window._upgradedOTSBytes = upgradedBytes;
-    }
-    return scanResult;
+    verifyThrew = e;
   }
-}
 
-// Scan OTS bytes for Bitcoin attestation tag and extract block height
-// Bitcoin attestation: tag(8) + 0x08(length=8) + block_height_uint64_LE(8)
-function extractBitcoinAttestation(buf) {
-  const BTC_TAG=[0x05,0x88,0x96,0x0d,0x73,0xd7,0x19,0x01];
-  outer: for(let i=0;i<buf.length-17;i++){
-    for(let j=0;j<8;j++) if(buf[i+j]!==BTC_TAG[j]) continue outer;
-    // Found tag — next byte is length (always 0x08), then 8 bytes of block height LE
-    const pos = i+8+1; // skip tag(8) + length byte(1)
-    if(pos+8>buf.length) return {confirmed:true,blockHeight:null};
-    let height=0n;
-    for(let k=0;k<8;k++) height|=BigInt(buf[pos+k])<<BigInt(8*k);
-    return {confirmed:true, blockHeight:Number(height)};
+  if (!verifyThrew && results && Object.keys(results).length > 0) {
+    const btc = results.bitcoin || results[Object.keys(results)[0]];
+    const blockHeight    = (btc && typeof btc.height === 'number') ? btc.height : null;
+    const blockTimestamp = (btc && typeof btc.timestamp === 'number') ? btc.timestamp : null;
+    try { window._upgradedOTSBytes = new Uint8Array(detachedOts.serializeToBytes()); } catch(_) {}
+    return {status:'confirmed', blockHeight, blockTimestamp,
+            claimedHeight:claim.height, reason:'verified', message:''};
   }
-  return {confirmed:false};
+
+  // Not confirmed. Distinguish "nothing to confirm yet" from "claimed but unproven".
+  if (claim.claims) {
+    // The proof asserts a Bitcoin block, but verification did not validate it.
+    // This is the shape a spliced or tampered proof produces. Never show success.
+    const why = verifyThrew ? (looksLikeNetworkError(verifyThrew.message)
+                  ? 'the block data could not be retrieved'
+                  : 'verification failed: ' + (verifyThrew.message || 'unknown error'))
+              : (upgradeNetworkFailed ? 'the calendar could not be reached'
+                                      : 'the proof did not validate');
+    return {status:'unverified', reason: verifyThrew && !looksLikeNetworkError(verifyThrew.message)
+                                          ? 'verify-failed' : 'unreachable',
+            blockHeight:null, blockTimestamp:null, claimedHeight:claim.height,
+            message:'This proof claims a Bitcoin timestamp, but that claim could not be verified because ' + why + '. Do not rely on it until it verifies.'};
+  }
+
+  if (verifyThrew && !looksLikeNetworkError(verifyThrew.message)) {
+    return {status:'failed', reason:'verify-error', claimedHeight:null,
+            message:'This proof did not validate: ' + (verifyThrew.message || 'unknown error')};
+  }
+
+  if (verifyThrew || upgradeNetworkFailed) {
+    return {status:'unverified', reason:'unreachable', claimedHeight:null,
+            message:'Could not reach the OpenTimestamps calendar to check this proof. Your connection may be blocked. Nothing has been confirmed.'};
+  }
+
+  return {status:'pending', blockHeight:null, blockTimestamp:null, claimedHeight:null,
+          reason:'awaiting-block',
+          message:'This proof is valid and binds to your content, but the Bitcoin timestamp is still pending. Calendars commit to a block roughly every 1-2 hours.'};
 }
 
 function pendingCheckHTML() {
@@ -3480,6 +3552,25 @@ function okHTML(hash,proof) {
   return `<div class="verify-ok"><div class="verify-ok-icon"><svg viewBox="0 0 48 48" fill="none"><circle cx="24" cy="24" r="22" stroke="#22c55e" stroke-width="1.5"/><polyline points="14,24 21,31 34,16" stroke="#22c55e" stroke-width="2" fill="none" stroke-linecap="round"/></svg></div><h2>PROOF VERIFIED</h2><p>This content is unaltered since it was stamped.<br><br>Hash: <code style="font-family:var(--font-mono);font-size: 13px;color:var(--purple-lt)">${hash.substring(0,16)}...${hash.substring(48)}</code><br>Proof: ${proof||'provided'}</p>${b64Section}</div>`;
 }
 
+function unverifiedHTML(hash, proof, msg, claimedHeight) {
+  const claimLine = claimedHeight
+    ? `<div style="margin-top:10px;padding:8px 10px;background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.25);border-radius:6px">
+         <span style="font-size:13px;color:var(--warning)">Unverified claim: this file asserts Bitcoin block #${escHtml(String(claimedHeight))}. That assertion has <strong>not</strong> been checked against the blockchain.</span>
+       </div>`
+    : '';
+  return `<div class="verify-ok" style="border-color:rgba(245,158,11,0.3);background:rgba(245,158,11,0.05)">
+    <div class="verify-ok-icon">
+      <svg viewBox="0 0 48 48" fill="none"><circle cx="24" cy="24" r="22" stroke="#f59e0b" stroke-width="1.5"/><line x1="24" y1="14" x2="24" y2="27" stroke="#f59e0b" stroke-width="2.5" stroke-linecap="round"/><circle cx="24" cy="33.5" r="1.8" fill="#f59e0b"/></svg>
+    </div>
+    <h2 style="color:var(--warning)">NOT VERIFIED</h2>
+    <p>${escHtml(msg)}<br><br>
+      Hash: <code style="font-family:var(--font-mono);font-size:13px;color:var(--purple-lt)">${escHtml(hash.substring(0,16))}…${escHtml(hash.substring(48))}</code><br>
+      Proof: ${escHtml(proof||'provided')}
+    </p>
+    ${claimLine}
+  </div>`;
+}
+
 function failHTML(msg) {
   return `<div class="verify-fail"><h2>VERIFICATION FAILED</h2><p>${msg}</p></div>`;
 }
@@ -3495,7 +3586,7 @@ function downloadUpgradedOTS(proofBase) {
 function downloadVerifyMetaJSON(blockHeight, calendar, hash, proofName, blockTimestamp) {
   const otsB64=window._upgradedOTSBytes?uint8ToBase64(window._upgradedOTSBytes):(verifyOTS?uint8ToBase64(verifyOTS):null);
   const meta={
-    tool:'Cypher Keep',version:'0.3.0',
+    tool:'Cypher Keep',version:CK_VERSION,
     sha256:hash,
     ots_file:proofName||null,
     ots_proof_base64:otsB64,
@@ -3555,8 +3646,8 @@ async function checkStampConfirmation() {
   resultEl.innerHTML=`<p style="font-size:13px;color:var(--text-secondary)">Contacting OpenTimestamps calendar…</p>`;
 
   try {
-    const attestation=await checkCalendarConfirmation(currentHash, null);
-    if(attestation&&attestation.confirmed){
+    const attestation=await verifyOTSProof(currentHash, otsBytes);
+    if(attestation && attestation.status==='confirmed'){
       const bh=attestation.blockHeight;
       const explorerUrl=bh?`https://mempool.space/block-height/${bh}`:'https://mempool.space';
       window._stampConfirmedBlock=bh;
@@ -3582,8 +3673,12 @@ async function checkStampConfirmation() {
       if(window._lastNostrEventId){
         document.getElementById('stamp-nostr-confirm-btn-wrap').style.display='block';
       }
-    } else {
+    } else if(attestation && attestation.status==='pending'){
       resultEl.innerHTML=`<p style="font-size:13px;color:var(--text-tertiary)">Still pending — the block hasn't been mined yet. Check back in a little while.</p>`;
+      btn.disabled=false; btn.textContent='Check Bitcoin confirmation';
+    } else {
+      const warn=(attestation&&attestation.message)||'Could not verify this proof.';
+      resultEl.innerHTML=`<p style="font-size:13px;color:var(--warning)">${escHtml(warn)}</p>`;
       btn.disabled=false; btn.textContent='Check Bitcoin confirmation';
     }
   } catch(e) {
@@ -3626,7 +3721,7 @@ function downloadStampConfirmedMetaJSON() {
   const bh=window._stampConfirmedBlock;
   const otsB64=window._upgradedOTSBytes?uint8ToBase64(window._upgradedOTSBytes):(otsBytes?uint8ToBase64(otsBytes):null);
   const meta={
-    tool:'Cypher Keep',version:'0.3.0',
+    tool:'Cypher Keep',version:CK_VERSION,
     file:currentFile?{name:currentFile.name,size:currentFile.size,type:currentFile.type||'unknown'}:null,
     sha256:currentHash,
     timestamp:stampedAt||new Date().toISOString(),
@@ -4585,7 +4680,7 @@ function eventIdToNevent(hexId) {
   try {
     const bytes=hexId.match(/.{2}/g).map(b=>parseInt(b,16));
     // TLV: type=0 (id), length=32, value=bytes
-    const tlv=[0,0,32,...bytes];
+    const tlv=[0,32,...bytes];
     return bech32Encode('nevent',tlv);
   } catch(_){ return null; }
 }
