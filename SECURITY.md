@@ -8,6 +8,7 @@ have. Reports of that kind are welcome and will be acted on quickly.
 
 Please report privately first, rather than opening a public issue.
 
+- **Email** `keith@keithmeola.com`
 - **Nostr DM:** `npub1ygzsm5m9ndtgch9n22cwsx2clwvxhk2pqvdfp36t5lmdyjqvz84qkca2m5`
 - **PGP:** `DB31 D0E3 FDAC A0A8 BF61  950E 53AE 9EF6 09AF EAD7`
   — [fetch key](https://keys.openpgp.org/search?q=53AE9EF609AFEAD7)
