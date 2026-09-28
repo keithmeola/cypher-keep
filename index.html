@@ -2754,7 +2754,7 @@ let decFile=null, decryptedBlob=null, decryptedName=null;
 // Nostr state
 let nostrPubkey=null;
 let lastPostedEventId=null;
-const CK_VERSION='0.3.3';
+const CK_VERSION='0.3.4';
 const NOSTR_RELAYS=['wss://relay.damus.io','wss://nos.lol','wss://relay.nostr.band'];
 const NOSTR_TAG='cypherkeep';
 
@@ -3502,11 +3502,14 @@ function confirmedHTML(hash, proof, attestation, calUrl) {
         </div>
         <div class="nostr-preview" id="confirm-nostr-preview" style="margin-bottom:12px;text-align:left">${buildConfirmContent(hash,calShort,proof||'',blockHeight,blockTimestamp,'',true)}</div>
 
-        <button class="btn btn-primary" id="announce-confirm-btn" onclick="announceConfirmation('${escHtml(hash)}','${escHtml(calShort)}','${escHtml(proof||'')}',${blockHeight||'null'},${blockTimestamp||'null'})">
+        <button class="btn btn-primary" id="announce-confirm-btn" data-ck-action="announce-confirm">
           Announce confirmation on Nostr
         </button>
       </div>`
     : '';
+
+  // Values the delegated handlers need, kept out of the markup entirely.
+  window._confirmCtx = {hash, calShort, proof: proof||'', blockHeight, blockTimestamp};
 
   return `<div class="verify-ok">
     <div class="verify-ok-icon"><svg viewBox="0 0 48 48" fill="none"><circle cx="24" cy="24" r="22" stroke="#22c55e" stroke-width="1.5"/><polyline points="14,24 21,31 34,16" stroke="#22c55e" stroke-width="2" fill="none" stroke-linecap="round"/></svg></div>
@@ -3518,13 +3521,13 @@ function confirmedHTML(hash, proof, attestation, calUrl) {
       <strong>Proof:</strong> ${escHtml(proof||'provided')}
     </p>
     <div style="margin-bottom:12px;text-align:left">
-      <span style="font-size:13px;color:var(--text-tertiary);cursor:pointer;user-select:none" onclick="var d=this.nextElementSibling;d.style.display=d.style.display==='none'?'block':'none';this.textContent=this.textContent.includes('▶')?'▼ Hide proof (base64)':'▶ Show proof (base64)'">▶ Show proof (base64)</span>
+      <span style="font-size:13px;color:var(--text-tertiary);cursor:pointer;user-select:none" data-ck-action="toggle-next">▶ Show proof (base64)</span>
       <div style="display:none;margin-top:6px;padding:8px;background:var(--bg-input);border-radius:6px;border:1px solid var(--border)"><code style="font-family:var(--font-mono);font-size:11px;color:var(--text-tertiary);word-break:break-all;line-height:1.6">${window._upgradedOTSBytes?uint8ToBase64(window._upgradedOTSBytes):(verifyOTS?uint8ToBase64(verifyOTS):'—')}</code></div>
     </div>
     <div class="btn-row" style="margin-top:12px;flex-wrap:wrap;justify-content:center">
       <a class="btn btn-secondary" href="${explorerUrl}" target="_blank" rel="noopener">View block ↗</a>
-      <button class="btn btn-secondary" onclick="downloadUpgradedOTS('${escHtml(proofBase)}')">Download upgraded .ots</button>
-      <button class="btn btn-secondary" onclick="downloadVerifyMetaJSON(${blockHeight||'null'},'${escHtml(calShort)}','${escHtml(hash)}','${escHtml(proof||'')}',${blockTimestamp||'null'})">Download metadata JSON</button>
+      <button class="btn btn-secondary" data-ck-action="download-upgraded-ots" data-ck-value="${escHtml(proofBase)}">Download upgraded .ots</button>
+      <button class="btn btn-secondary" data-ck-action="download-verify-meta">Download metadata JSON</button>
     </div>
     ${nostrSection}
   </div>`;
@@ -3547,7 +3550,7 @@ function pendingAttestHTML(msg) {
 function okHTML(hash,proof) {
   const b64 = verifyOTS ? uint8ToBase64(verifyOTS) : null;
   const b64Section = b64
-    ? `<div style="margin-top:8px;text-align:left"><span style="font-size:13px;color:var(--text-tertiary);cursor:pointer;user-select:none" onclick="var d=this.nextElementSibling;d.style.display=d.style.display==='none'?'block':'none';this.textContent=this.textContent.includes('▶')?'▼ Hide proof (base64)':'▶ Show proof (base64)'">▶ Show proof (base64)</span><div style="display:none;margin-top:6px;padding:8px;background:var(--bg-input);border-radius:6px;border:1px solid var(--border)"><div style="font-size:11px;color:var(--text-disabled);margin-bottom:4px">Pending proof — not yet Bitcoin confirmed</div><code style="font-family:var(--font-mono);font-size:11px;color:var(--text-tertiary);word-break:break-all;line-height:1.6">${b64}</code></div></div>`
+    ? `<div style="margin-top:8px;text-align:left"><span style="font-size:13px;color:var(--text-tertiary);cursor:pointer;user-select:none" data-ck-action="toggle-next">▶ Show proof (base64)</span><div style="display:none;margin-top:6px;padding:8px;background:var(--bg-input);border-radius:6px;border:1px solid var(--border)"><div style="font-size:11px;color:var(--text-disabled);margin-bottom:4px">Pending proof — not yet Bitcoin confirmed</div><code style="font-family:var(--font-mono);font-size:11px;color:var(--text-tertiary);word-break:break-all;line-height:1.6">${b64}</code></div></div>`
     : '';
   return `<div class="verify-ok"><div class="verify-ok-icon"><svg viewBox="0 0 48 48" fill="none"><circle cx="24" cy="24" r="22" stroke="#22c55e" stroke-width="1.5"/><polyline points="14,24 21,31 34,16" stroke="#22c55e" stroke-width="2" fill="none" stroke-linecap="round"/></svg></div><h2>PROOF VERIFIED</h2><p>This content is unaltered since it was stamped.<br><br>Hash: <code style="font-family:var(--font-mono);font-size: 13px;color:var(--purple-lt)">${hash.substring(0,16)}...${hash.substring(48)}</code><br>Proof: ${proof||'provided'}</p>${b64Section}</div>`;
 }
@@ -3584,6 +3587,9 @@ function downloadUpgradedOTS(proofBase) {
 }
 
 function downloadVerifyMetaJSON(blockHeight, calendar, hash, proofName, blockTimestamp) {
+  const _c = window._confirmCtx || {};
+  if(blockHeight === undefined) { blockHeight = _c.blockHeight; calendar = _c.calShort;
+                                  hash = _c.hash; proofName = _c.proof; blockTimestamp = _c.blockTimestamp; }
   const otsB64=window._upgradedOTSBytes?uint8ToBase64(window._upgradedOTSBytes):(verifyOTS?uint8ToBase64(verifyOTS):null);
   const meta={
     tool:'Cypher Keep',version:CK_VERSION,
@@ -3665,7 +3671,7 @@ async function checkStampConfirmation() {
       if(b64) {
         const b64El = document.createElement('div');
         b64El.style.cssText = 'margin-top:10px;padding-top:10px;border-top:1px solid var(--border)';
-        b64El.innerHTML = `<span style="font-size:13px;color:var(--text-tertiary);cursor:pointer;user-select:none" onclick="var d=this.nextElementSibling;d.style.display=d.style.display==='none'?'block':'none';this.textContent=this.textContent.includes('▶')?'▼ Hide proof (base64)':'▶ Show proof (base64)'">▶ Show proof (base64)</span><div style="display:none;margin-top:6px;padding:8px;background:var(--bg-input);border-radius:6px;border:1px solid var(--border)"><code style="font-family:var(--font-mono);font-size:11px;color:var(--text-tertiary);word-break:break-all;line-height:1.6">${b64}</code></div>`;
+        b64El.innerHTML = `<span style="font-size:13px;color:var(--text-tertiary);cursor:pointer;user-select:none" data-ck-action="toggle-next">▶ Show proof (base64)</span><div style="display:none;margin-top:6px;padding:8px;background:var(--bg-input);border-radius:6px;border:1px solid var(--border)"><code style="font-family:var(--font-mono);font-size:11px;color:var(--text-tertiary);word-break:break-all;line-height:1.6">${b64}</code></div>`;
         resultEl.appendChild(b64El);
       }
       btn.textContent='Confirmed ✓';
@@ -3770,9 +3776,9 @@ async function announceStampConfirmation() {
       postBtns.className='btn-row';
       postBtns.style.cssText='flex-wrap:wrap;margin-top:10px';
       postBtns.innerHTML=`
-        <a class="btn btn-secondary" href="https://njump.me/${confirmId}" target="_blank" rel="noopener">View on njump ↗</a>
-        <button class="btn btn-secondary" onclick="navigator.clipboard.writeText('https://njump.me/${confirmId}').then(()=>toast('Link copied'))">Copy link</button>
-        <button class="btn btn-secondary" onclick="downloadStampConfirmedMetaJSON()">Download metadata JSON</button>
+        <a class="btn btn-secondary" href="https://njump.me/${escHtml(confirmId)}" target="_blank" rel="noopener">View on njump ↗</a>
+        <button class="btn btn-secondary" data-ck-action="copy-text" data-ck-value="https://njump.me/${escHtml(confirmId)}" data-ck-toast="Link copied">Copy link</button>
+        <button class="btn btn-secondary" data-ck-action="download-stamp-confirmed-meta">Download metadata JSON</button>
       `;
       wrap.appendChild(postBtns);
     }
@@ -3903,6 +3909,9 @@ async function autoFillConfirmNevent(hash) {
 }
 
 async function announceConfirmation(hash, calendar, proofName, blockHeight, blockTimestamp) {
+  const _c = window._confirmCtx || {};
+  if(hash === undefined) { hash = _c.hash; calendar = _c.calShort; proofName = _c.proof;
+                           blockHeight = _c.blockHeight; blockTimestamp = _c.blockTimestamp; }
   if(!nostrPubkey) return;
   const btn=document.getElementById('announce-confirm-btn');
   btn.disabled=true;
@@ -3960,9 +3969,9 @@ async function announceConfirmation(hash, calendar, proofName, blockHeight, bloc
     postBtns.className='btn-row';
     postBtns.style.cssText='flex-wrap:wrap;margin-top:10px';
     postBtns.innerHTML=`
-      <a class="btn btn-secondary" href="https://njump.me/${confirmId}" target="_blank" rel="noopener">View on njump ↗</a>
-      <button class="btn btn-secondary" onclick="navigator.clipboard.writeText('https://njump.me/${confirmId}').then(()=>toast('Link copied'))">Copy link</button>
-      <button class="btn btn-secondary" onclick="downloadVerifyMetaJSON(${blockHeight||'null'},'${escHtml(calendar)}','${escHtml(hash)}','${escHtml(proofName||'')}',${blockTimestamp||'null'})">Download metadata JSON</button>
+      <a class="btn btn-secondary" href="https://njump.me/${escHtml(confirmId)}" target="_blank" rel="noopener">View on njump ↗</a>
+      <button class="btn btn-secondary" data-ck-action="copy-text" data-ck-value="https://njump.me/${escHtml(confirmId)}" data-ck-toast="Link copied">Copy link</button>
+      <button class="btn btn-secondary" data-ck-action="download-verify-meta">Download metadata JSON</button>
     `;
     btn.parentNode.appendChild(postBtns);
     toast('Confirmation announced on Nostr ✓');
@@ -4750,7 +4759,9 @@ function addCustomRelayToList(url) {
   row.innerHTML=`
     <input type="checkbox" checked style="accent-color:var(--purple);width:13px;height:13px;pointer-events:none">
     <label style="font-family:var(--font-mono);font-size: 13px;color:var(--text-secondary);flex:1">${escHtml(url.replace('wss://',''))}</label>
-    <button onclick="removeCustomRelay('${escHtml(url)}')" style="background:none;border:none;color:var(--text-tertiary);cursor:pointer;font-size: 14px;padding:0 4px" title="Remove">×</button>`;
+    <button data-remove-relay="${escHtml(url)}" style="background:none;border:none;color:var(--text-tertiary);cursor:pointer;font-size: 14px;padding:0 4px" title="Remove">×</button>`;
+  const rmBtn=row.querySelector('[data-remove-relay]');
+  if(rmBtn) rmBtn.addEventListener('click',()=>removeCustomRelay(url));
   container.appendChild(row);
 }
 
@@ -4860,7 +4871,7 @@ async function doNostrPost() {
       const short=r.relay.replace('wss://','');
       const row=document.createElement('div');
       row.className='relay-result-row';
-      row.innerHTML=`<div class="relay-result-dot ${r.ok?'ok':'fail'}"></div>${escHtml(short)} — ${r.ok?'accepted':(r.reason||'rejected')}`;
+      row.innerHTML=`<div class="relay-result-dot ${r.ok?'ok':'fail'}"></div>${escHtml(short)} — ${r.ok?'accepted':escHtml(String(r.reason||'rejected').slice(0,120))}`;
       relayResultsEl.appendChild(row);
     });
 
@@ -4925,9 +4936,26 @@ async function loadStamps() {
   document.getElementById('refresh-stamps-btn').disabled=true;
 
   try {
-    const results=await queryRelayForStamps(nostrPubkey);
+    const queryResult=await queryRelayForStamps(nostrPubkey);
+    const results=queryResult.events;
+    const rejects=queryResult.rejects;
     loading.style.display='none';
     document.getElementById('refresh-stamps-btn').disabled=false;
+
+    // Surface any events that failed signature verification. Under normal
+    // conditions this never appears, so if it does it means something real.
+    if(rejects && rejects.size>0){
+      let total=0; const names=[];
+      rejects.forEach((n,relay)=>{ total+=n; names.push(relay.replace('wss://','')); });
+      const warn=document.createElement('div');
+      warn.style.cssText='margin-bottom:14px;padding:10px 12px;background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.25);border-radius:8px';
+      warn.innerHTML='<span style="font-size:13px;color:var(--warning)">⚠ '+total+
+        ' event'+(total===1?'':'s')+' from '+escHtml(names.join(', '))+
+        ' failed signature verification and '+(total===1?'was':'were')+
+        ' hidden. '+(total===1?'That event was':'Those events were')+
+        ' not signed by your key. Consider removing that relay.</span>';
+      list.appendChild(warn);
+    }
 
     if(!results||results.length===0){
       empty.style.display='block';
@@ -4951,7 +4979,7 @@ async function loadStamps() {
       const fname=getTag(e,'filename')||'Unknown file';
       const ts=new Date(e.created_at*1000);
       const dateStr=ts.toLocaleDateString('en-US',{year:'numeric',month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
-      const njumpUrl=`https://njump.me/${e.id}`;
+      const njumpUrl=`https://njump.me/${encodeURIComponent(e.id)}`;
       const hashShort=hash.length===64?hash.substring(0,12)+'…'+hash.substring(52):hash;
       const relayDots=foundOn.map(r=>`<span style="font-size:11px;color:var(--success)">●</span> <span style="font-size:11px;color:var(--text-tertiary)">${escHtml(r.replace('wss://',''))}</span>`).join(' &nbsp;');
       const dropId=`stamp-meta-${idx}`;
@@ -4978,11 +5006,16 @@ async function loadStamps() {
           <div style="margin-top:5px;display:flex;flex-wrap:wrap;gap:6px;align-items:center">${relayDots}</div>
         </div>
         <div class="stamp-item-actions">
-          <button class="stamp-expand-btn" title="Show metadata" onclick="toggleStampMeta('${dropId}',this)">▼ Details</button>
-          <button class="btn-nostr-link" onclick="verifyFromStamp('${escHtml(hash)}')" style="display:inline-flex;align-items:center;color:#60a5fa;border-color:rgba(59,130,246,0.3);background:rgba(59,130,246,0.08)">Verify</button>
-          <a class="btn-nostr-link" href="${njumpUrl}" target="_blank" rel="noopener" style="display:inline-flex;align-items:center">View ↗</a>
+          <button class="stamp-expand-btn" data-toggle-meta="${escHtml(dropId)}" title="Show metadata">▼ Details</button>
+          <button class="btn-nostr-link" data-verify-hash="${escHtml(hash)}" style="display:inline-flex;align-items:center;color:#60a5fa;border-color:rgba(59,130,246,0.3);background:rgba(59,130,246,0.08)">Verify</button>
+          <a class="btn-nostr-link" href="${escHtml(njumpUrl)}" target="_blank" rel="noopener" style="display:inline-flex;align-items:center">View ↗</a>
         </div>
         <div class="stamp-meta-dropdown" id="${dropId}">${metaLines}</div>`;
+      // Bind handlers rather than interpolating values into inline onclick.
+      const tBtn=item.querySelector('[data-toggle-meta]');
+      if(tBtn) tBtn.addEventListener('click',()=>toggleStampMeta(dropId,tBtn));
+      const vBtn=item.querySelector('[data-verify-hash]');
+      if(vBtn) vBtn.addEventListener('click',()=>verifyFromStamp(hash));
       list.appendChild(item);
     });
 
@@ -5021,17 +5054,90 @@ function queryRelayForStamps(pubkey) {
       ws.onerror=()=>{if(!done){done=true;ws.close();resolve({relay:url,events});}};
       ws.onclose=()=>{if(!done){done=true;resolve({relay:url,events});}};
     }catch(_){resolve({relay:url,events});}
-  }))).then(results=>{
-    // Merge events, tracking which relays each event id was found on
+  }))).then(async results=>{
+    // Verify every event before it can reach the UI. Events that fail are
+    // dropped and counted per relay so the user learns which relay misbehaved.
     const eventMap=new Map(); // id -> {event, relays:[]}
-    results.forEach(({relay,events})=>{
-      events.forEach(ev=>{
+    const rejects=new Map(); // relay -> count
+    const verdicts=new Map(); // id -> boolean (verify each event once)
+
+    for(const {relay,events} of results){
+      for(const ev of events){
+        const key=(ev&&typeof ev.id==='string')?ev.id:null;
+        let okEvent;
+        if(key!==null&&verdicts.has(key)) okEvent=verdicts.get(key);
+        else {
+          okEvent=await verifyNostrEvent(ev, pubkey);
+          if(key!==null) verdicts.set(key,okEvent);
+        }
+        if(!okEvent){
+          rejects.set(relay,(rejects.get(relay)||0)+1);
+          continue;
+        }
         if(!eventMap.has(ev.id)) eventMap.set(ev.id,{event:ev,relays:[]});
         eventMap.get(ev.id).relays.push(relay);
-      });
-    });
-    return Array.from(eventMap.values());
+      }
+    }
+    return {events:Array.from(eventMap.values()), rejects};
   });
+}
+
+// ── DELEGATED UI ACTIONS ──
+// No value is ever interpolated into an inline event handler. Elements carry
+// data-ck-action plus escaped data attributes; this single listener reads them.
+// An attribute can therefore never become executable code.
+document.addEventListener('click', function(ev){
+  const el = ev.target && ev.target.closest ? ev.target.closest('[data-ck-action]') : null;
+  if(!el) return;
+  const action = el.getAttribute('data-ck-action');
+  if(action === 'copy-text'){
+    navigator.clipboard.writeText(el.getAttribute('data-ck-value') || '')
+      .then(()=>toast(el.getAttribute('data-ck-toast') || 'Copied'));
+  } else if(action === 'toggle-next'){
+    const d = el.nextElementSibling;
+    if(!d) return;
+    const open = d.style.display === 'none';
+    d.style.display = open ? 'block' : 'none';
+    el.textContent = open ? '▼ Hide proof (base64)' : '▶ Show proof (base64)';
+  } else if(action === 'announce-confirm'){
+    announceConfirmation();
+  } else if(action === 'download-verify-meta'){
+    downloadVerifyMetaJSON();
+  } else if(action === 'download-upgraded-ots'){
+    downloadUpgradedOTS(el.getAttribute('data-ck-value') || '');
+  } else if(action === 'download-stamp-confirmed-meta'){
+    downloadStampConfirmedMetaJSON();
+  }
+});
+
+// ── INBOUND EVENT VERIFICATION ──
+// A relay filter is a request, not a guarantee. Relays can return any event
+// they like, including ones they invented. Every event that reaches the UI is
+// checked here first: well-formed fields, event id recomputed from the content,
+// and a Schnorr signature that validates against the claimed pubkey.
+// Anything that fails is not the user's stamp and is dropped.
+async function verifyNostrEvent(ev, expectedPubkey) {
+  try {
+    if(!ev || typeof ev!=='object') return false;
+    if(!/^[0-9a-f]{64}$/.test(ev.id||'')) return false;
+    if(!/^[0-9a-f]{64}$/.test(ev.pubkey||'')) return false;
+    if(!/^[0-9a-f]{128}$/.test(ev.sig||'')) return false;
+    if(expectedPubkey && ev.pubkey!==expectedPubkey) return false;
+    if(typeof ev.created_at!=='number' || typeof ev.kind!=='number') return false;
+    if(!Array.isArray(ev.tags) || typeof ev.content!=='string') return false;
+    for(const t of ev.tags){ if(!Array.isArray(t)) return false; }
+
+    // Recompute the event id per NIP-01. A relay cannot alter content without
+    // breaking this, and cannot fix it without the private key.
+    const ser=JSON.stringify([0,ev.pubkey,ev.created_at,ev.kind,ev.tags,ev.content]);
+    const buf=await crypto.subtle.digest('SHA-256', new TextEncoder().encode(ser));
+    const id=Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+    if(id!==ev.id) return false;
+
+    const secp=window.nobleSecp256k1;
+    if(!secp || !secp.schnorr || typeof secp.schnorr.verify!=='function') return false;
+    return await secp.schnorr.verify(ev.sig, ev.id, ev.pubkey) === true;
+  } catch(_) { return false; }
 }
 
 function getTag(event,name){
@@ -5118,7 +5224,10 @@ function uint8ToBase64(u8){
 }
 
 function escHtml(s){
-  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  // Must escape ' and ` as well as " — values are interpolated into HTML
+  // attributes, and an unescaped quote breaks out of the attribute context.
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+                  .replace(/"/g,'&quot;').replace(/'/g,'&#39;').replace(/`/g,'&#96;');
 }
 
 // ── PASSWORD EYE TOGGLE + LAST CHAR REVEAL ──
@@ -5189,7 +5298,7 @@ document.addEventListener('DOMContentLoaded', () => {
     .then(dig=>{
       const hex=Array.from(new Uint8Array(dig)).map(b=>b.toString(16).padStart(2,'0')).join('');
       const short=hex.substring(0,16)+'…'+hex.substring(48);
-      el.innerHTML=`<span title="${hex}" style="cursor:pointer" onclick="navigator.clipboard.writeText('${hex}').then(()=>toast('Page hash copied'))">${short}</span> · <a href="https://github.com/keithmeola/cypher-keep/releases" target="_blank" rel="noopener" style="color:var(--text-tertiary)">compare ↗</a>`;
+      el.innerHTML=`<span title="${escHtml(hex)}" style="cursor:pointer" data-ck-action="copy-text" data-ck-value="${escHtml(hex)}" data-ck-toast="Page hash copied">${escHtml(short)}</span> · <a href="https://github.com/keithmeola/cypher-keep/releases" target="_blank" rel="noopener" style="color:var(--text-tertiary)">compare ↗</a>`;
     })
     .catch(()=>{
       el.textContent='(could not compute)';

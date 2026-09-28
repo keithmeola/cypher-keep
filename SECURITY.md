@@ -8,7 +8,6 @@ have. Reports of that kind are welcome and will be acted on quickly.
 
 Please report privately first, rather than opening a public issue.
 
-- **Email** `keith@keithmeola.com`
 - **Nostr DM:** `npub1ygzsm5m9ndtgch9n22cwsx2clwvxhk2pqvdfp36t5lmdyjqvz84qkca2m5`
 - **PGP:** `DB31 D0E3 FDAC A0A8 BF61  950E 53AE 9EF6 09AF EAD7`
   — [fetch key](https://keys.openpgp.org/search?q=53AE9EF609AFEAD7)
@@ -52,3 +51,4 @@ on "don't trust, verify" does not get to hide its own failures.
 | Version | Issue |
 |---|---|
 | ≤ 0.3.2 | Verification accepted forged proofs. A `.ots` file with 32 bytes overwritten could report BITCOIN CONFIRMED for arbitrary content. Fixed in 0.3.3. |
+| ≤ 0.3.3 | Events returned by relays were displayed without verifying their signatures, and several values were interpolated into inline event handlers without adequate escaping. A malicious relay could execute JavaScript in the page, which runs alongside a connected Nostr signer. Fixed in 0.3.4. |
