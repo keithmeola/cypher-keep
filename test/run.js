@@ -44,6 +44,8 @@ const HEX_HELPER = '\nfunction hexToBytes(hex){const b=new Uint8Array(hex.length
 console.log('\x1b[1mCypher Keep — test suite\x1b[0m');
 console.log('\x1b[2mreading ' + path.relative(process.cwd(), HTML) + '\x1b[0m');
 
+async function main() {
+
 // ═══════════════════════════════════════════════════════════
 section('Version consistency');
 // ═══════════════════════════════════════════════════════════
@@ -108,7 +110,7 @@ section('Verification — fail-closed guarantees');
     const forgedHash = crypto.createHash('sha256').update('backdated document').digest();
     const spliced = Buffer.from(genuine); forgedHash.copy(spliced, 33);
 
-    return (async () => {
+    await (async () => {
       // THE regression test for the v0.3.2 vulnerability
       const r1 = await verifyOTSProof(forgedHash.toString('hex'), new Uint8Array(spliced));
       ok('spliced proof is NOT confirmed', r1.status !== 'confirmed',
@@ -138,17 +140,111 @@ section('Verification — fail-closed guarantees');
       ok('missing library never confirms', r4.status !== 'confirmed',
          'got status=' + r4.status);
 
-      await cryptoTests();
-      finish();
     })();
   }
 }
 
-cryptoTests().then(finish);
+
+// ═══════════════════════════════════════════════════════════
+async function escapingTests() {
+section('Escaping — attribute-context injection');
+{
+  const mod = {};
+  new Function('module','exports', extract('function escHtml(s){','\n}\n') + '\n}\n' +
+    'module.exports={escHtml};')(mod, mod.exports = {});
+  const { escHtml } = mod.exports;
+
+  ok("escapes single quote", escHtml("a'b") === 'a&#39;b', 'got ' + escHtml("a'b"));
+  ok('escapes double quote', escHtml('a"b') === 'a&quot;b');
+  ok('escapes backtick', escHtml('a`b') === 'a&#96;b');
+  ok('escapes angle brackets and ampersand',
+     escHtml('<&>') === '&lt;&amp;&gt;');
+
+  // the exact payload that broke out in 0.3.3 and earlier
+  const payload = "x'),window.nostr.signEvent({kind:1,content:'pwned'}),('";
+  const rendered = `<button onclick="f('${escHtml(payload)}')">x</button>`;
+  ok('payload cannot close the JS string inside an attribute',
+     !/onclick="f\('[^"]*'\)[^"]*,/.test(rendered) && rendered.indexOf("'),") === -1);
+}
+
+section('Inline handlers — no interpolated values');
+{
+  // Values from relays must never be interpolated into inline event handlers.
+  const bad = src.match(/on(?:click|error|load|focus|mouseover)="[^"]*\$\{(?!escHtml\()/g) || [];
+  ok('no unescaped interpolation in inline handlers', bad.length === 0,
+     bad.length ? bad.slice(0,3).join(' | ') : '');
+  ok('stamp list uses data attributes, not inline onclick',
+     src.includes('data-verify-hash') && src.includes('data-toggle-meta') &&
+     !src.includes("onclick=\"verifyFromStamp('${"));
+}
+}
+
+// ═══════════════════════════════════════════════════════════
+async function inboundEventTests() {
+section('Inbound events — signature verification');
+{
+  // Load the noble bundle exactly as it ships inside index.html.
+  const s = src.indexOf('/* noble-secp256k1');
+  const e = src.indexOf('</script>', s);
+  if (s === -1) { skipped('signature verification', 'noble bundle not found'); return; }
+
+  global.self = global.self || { crypto: global.crypto };
+  const shim = { exports: {} };
+  new Function('module','exports','self','window', src.slice(s, e))(
+    shim, shim.exports, global.self, undefined);
+  const secp = shim.exports;
+  if (!secp || !secp.utils) { skipped('signature verification', 'noble bundle did not load'); return; }
+
+  global.window = { nobleSecp256k1: secp };
+  const mod = {};
+  new Function('module','exports','window','crypto','TextEncoder',
+    extract('async function verifyNostrEvent', 'function getTag(event,name){') +
+    'module.exports={verifyNostrEvent};'
+  )(mod, mod.exports = {}, global.window, global.crypto, TextEncoder);
+  const { verifyNostrEvent } = mod.exports;
+
+  const hex = u8 => Array.from(u8).map(b => b.toString(16).padStart(2,'0')).join('');
+  const priv = secp.utils.randomPrivateKey();
+  const pub  = hex(secp.getPublicKey(priv, false).slice(1, 33));
+
+  async function signEvent(content, tags) {
+    const ev = { pubkey: pub, created_at: Math.floor(Date.now()/1000), kind: 1,
+                 tags: tags || [['t','cypherkeep'],['sha256','a'.repeat(64)]], content };
+    const ser = JSON.stringify([0, ev.pubkey, ev.created_at, ev.kind, ev.tags, ev.content]);
+    const h = await global.crypto.subtle.digest('SHA-256', new TextEncoder().encode(ser));
+    ev.id = hex(new Uint8Array(h));
+    ev.sig = hex(await secp.schnorr.sign(ev.id, priv));
+    return ev;
+  }
+
+  const good = await signEvent('genuine stamp');
+  ok('accepts a genuinely signed event', await verifyNostrEvent(good, pub) === true);
+
+  const otherPub = hex(secp.getPublicKey(secp.utils.randomPrivateKey(), false).slice(1,33));
+  ok('rejects event authored by a different key',
+     await verifyNostrEvent(good, otherPub) === false);
+
+  ok('rejects tampered content',
+     await verifyNostrEvent({ ...good, content: 'forged stamp' }, pub) === false);
+
+  // tags are where the XSS payload would live
+  ok('rejects tampered tags (XSS payload vector)',
+     await verifyNostrEvent({ ...good,
+       tags: [['t','cypherkeep'],['sha256', "x'),alert(1),('"]] }, pub) === false);
+
+  ok('rejects wholly invented event',
+     await verifyNostrEvent({ id:'a'.repeat(64), pubkey:pub, created_at:1, kind:1,
+                              tags:[], content:'fake', sig:'b'.repeat(128) }, pub) === false);
+
+  ok('rejects malformed input',
+     await verifyNostrEvent(null, pub) === false &&
+     await verifyNostrEvent({id:'x'}, pub) === false &&
+     await verifyNostrEvent({ ...good, tags: 'not-an-array' }, pub) === false);
+}
+}
 
 // ═══════════════════════════════════════════════════════════
 async function cryptoTests() {
-// ═══════════════════════════════════════════════════════════
 section('NIP-44 — official spec vectors');
 {
   const nip44 = extract('async function nip44GetConversationKey', 'async function nip46Decrypt');
@@ -236,6 +332,16 @@ section('bech32 — NIP-19 encoding');
      'got ' + B.eventIdToNevent(id));
 }
 }
+
+  await escapingTests();
+  await inboundEventTests();
+  await cryptoTests();
+}
+
+main().then(finish).catch(err => {
+  console.error('\n\x1b[31mtest runner error:\x1b[0m', err.message);
+  process.exit(1);
+});
 
 function finish() {
   console.log('\n' + '─'.repeat(52));
