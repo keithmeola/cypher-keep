@@ -147,6 +147,21 @@ section('Verification — fail-closed guarantees');
 
 // ═══════════════════════════════════════════════════════════
 async function escapingTests() {
+
+section('External resources — none permitted');
+{
+  const loads = (src.match(/(?:src|href)=["'](https?:\/\/[^"']+\.(?:js|css|woff2?))["']/gi) || []);
+  ok('no external scripts, stylesheets or fonts', loads.length === 0,
+     loads.length ? loads.join(' | ') : '');
+  ok('no Google Fonts import', !src.includes('fonts.googleapis.com'));
+  ok('OpenTimestamps library is served locally',
+     src.includes('src="ots.min.js"') && !src.includes('opentimestamps.org/assets'));
+  ok('Content-Security-Policy is present',
+     src.includes('http-equiv="Content-Security-Policy"'));
+  ok('fonts are referenced from a local directory',
+     (src.match(/url\('fonts\/[a-z0-9-]+\.woff2'\)/g) || []).length === 6);
+}
+
 section('Escaping — attribute-context injection');
 {
   const mod = {};
