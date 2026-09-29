@@ -2769,7 +2769,7 @@ let decFile=null, decryptedBlob=null, decryptedName=null;
 // Nostr state
 let nostrPubkey=null;
 let lastPostedEventId=null;
-const CK_VERSION='0.3.5';
+const CK_VERSION='0.3.6';
 const NOSTR_RELAYS=['wss://relay.damus.io','wss://nos.lol','wss://relay.nostr.band'];
 const NOSTR_TAG='cypherkeep';
 
@@ -2941,29 +2941,41 @@ async function doStamp() {
   setLog('build','idle','Building proof file...');
 
   const hb=hexToBytes(currentHash);
-  const cals=['https://alice.btc.calendar.opentimestamps.org','https://bob.btc.calendar.opentimestamps.org','https://finney.calendar.eternitywall.com'];
-  let resp=null, cal=null;
-  for(const c of cals){
-    try{
-      const r=await fetch(c+'/digest',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:hb});
-      if(r.ok){resp=await r.arrayBuffer();cal=c;break;}
-    }catch(_){}
-  }
-  if(!resp){
-    setLog('submit','fail','All calendar servers unreachable. Check your connection.');
+  // A proof can only be upgraded to a Bitcoin attestation by a calendar that
+  // holds it. Submitting to all three means the proof survives any one of them
+  // going away. Single-calendar mode is available for users who would rather
+  // only reveal their hash to one party.
+  const singleOnly=document.getElementById('single-calendar-toggle');
+  const useOne=!!(singleOnly && singleOnly.checked);
+  const cals=useOne ? [OTS_CALENDARS[0]] : OTS_CALENDARS;
+
+  setLog('submit','active', useOne
+    ? 'Submitting to 1 OpenTimestamps calendar...'
+    : `Submitting to ${cals.length} OpenTimestamps calendars...`);
+
+  const settled=await Promise.all(cals.map(c=>submitToCalendar(c, hb)));
+  const good=settled.filter(r=>r.ok);
+
+  if(good.length===0){
+    const why=settled.map(r=>r.url.replace('https://','')+': '+r.error).join(' · ');
+    setLog('submit','fail','No calendar could be reached. '+why);
     document.getElementById('stamp-btn').disabled=false;
     toast('Could not reach OpenTimestamps servers.',true);
     return;
   }
 
-  window._calendarUsed = cal;
+  window._calendarUsed = good[0].url;
+  window._calendarsUsed = good.map(r=>r.url);
 
-  setLog('submit','ok',`Submitted to ${cal.replace('https://','')}`);
+  const names=good.map(r=>r.url.replace('https://','').replace('/$',''));
+  setLog('submit','ok', good.length===cals.length
+    ? `Submitted to ${good.length} calendar${good.length===1?'':'s'}: ${names.join(', ')}`
+    : `Submitted to ${good.length} of ${cals.length} calendars: ${names.join(', ')}`);
   setLog('recv','ok','Acknowledged — pending Bitcoin block inclusion (~1–2 hrs)');
   setLog('build','active','Assembling proof file...');
   await sleep(350);
 
-  otsBytes=buildOTS(hb,new Uint8Array(resp));
+  otsBytes=buildOTS(hb, good.map(r=>r.bytes));
   otsFilename=(currentFile?currentFile.name:'content')+'.ots';
   setLog('build','ok',`Proof ready — ${otsFilename}`);
   document.getElementById('stamp-success').classList.add('show');
@@ -2984,9 +2996,48 @@ function setLog(id,state,text) {
   txt.style.color=state==='ok'?'var(--text-secondary)':state==='fail'?'var(--error)':state==='active'?'var(--text-primary)':'var(--text-tertiary)';
 }
 
-function buildOTS(hb,cr) {
+const OTS_CALENDARS=[
+  'https://alice.btc.calendar.opentimestamps.org',
+  'https://bob.btc.calendar.opentimestamps.org',
+  'https://finney.calendar.eternitywall.com'
+];
+const OTS_CALENDAR_TIMEOUT_MS=15000;
+
+// Submit the hash to one calendar. Never throws — a slow or dead calendar
+// must not prevent the others from producing a proof.
+async function submitToCalendar(url, hashBytes) {
+  const ctrl=typeof AbortController!=='undefined' ? new AbortController() : null;
+  const timer=setTimeout(()=>{ try{ ctrl && ctrl.abort(); }catch(_){} }, OTS_CALENDAR_TIMEOUT_MS);
+  try {
+    const r=await fetch(url+'/digest', {
+      method:'POST',
+      headers:{'Content-Type':'application/x-www-form-urlencoded'},
+      body:hashBytes,
+      signal: ctrl ? ctrl.signal : undefined
+    });
+    clearTimeout(timer);
+    if(!r.ok) return {ok:false,url,error:'HTTP '+r.status};
+    const buf=await r.arrayBuffer();
+    if(!buf || buf.byteLength===0) return {ok:false,url,error:'empty response'};
+    return {ok:true,url,bytes:new Uint8Array(buf)};
+  } catch(e) {
+    clearTimeout(timer);
+    return {ok:false,url,error:(e && e.name==='AbortError') ? 'timed out' : 'unreachable'};
+  }
+}
+
+// Assemble the .ots file. Each calendar returns a branch continuing from the
+// same file hash; the OTS serialization joins sibling branches with 0xff before
+// every branch except the last.
+function buildOTS(hb, calendarResponses) {
   const magic=new Uint8Array([0x00,0x4f,0x70,0x65,0x6e,0x54,0x69,0x6d,0x65,0x73,0x74,0x61,0x6d,0x70,0x73,0x00,0x00,0x50,0x72,0x6f,0x6f,0x66,0x00,0xbf,0x89,0xe2,0xe8,0x84,0xe8,0x92,0x94]);
-  return concat([magic,new Uint8Array([0x01,0x08]),hb,cr]);
+  const branches=Array.isArray(calendarResponses)?calendarResponses:[calendarResponses];
+  const parts=[magic,new Uint8Array([0x01,0x08]),hb];
+  branches.forEach((b,i)=>{
+    if(i<branches.length-1) parts.push(new Uint8Array([0xff]));
+    parts.push(b);
+  });
+  return concat(parts);
 }
 
 // ── EXPORTS ──
@@ -3006,6 +3057,7 @@ function downloadMetaJSON() {
     ots_file:otsFilename||null,
     ots_proof_base64:otsB64,
     calendar:cal,
+    calendars:cals,
     bitcoin_block:null,
     bitcoin_block_time:null,
     status:'pending',
