@@ -1826,6 +1826,19 @@ footer {
         OpenTimestamps batches your hash with thousands of others into a Merkle tree and commits the root to the Bitcoin blockchain. Your <code style="font-family:var(--font-mono);font-size: 14px;color:var(--purple-lt);background:var(--bg-input);padding:1px 5px;border-radius:3px">.ots</code> file proves your content existed at this moment — verifiable by anyone, forever.
       </p>
 
+      <label style="display:flex;align-items:flex-start;gap:9px;margin-bottom:14px;cursor:pointer">
+        <input type="checkbox" id="single-calendar-toggle" style="margin-top:3px;flex-shrink:0">
+        <span style="font-size:13px;color:var(--text-tertiary);line-height:1.6">
+          Submit to a single calendar only
+          <span style="display:block;color:var(--text-disabled);margin-top:2px">
+            By default your hash goes to three independent calendars, so the proof survives
+            any one of them going offline. Using one means only one party sees your hash,
+            but the proof depends on that calendar staying online. Your file is never sent
+            either way — only its hash.
+          </span>
+        </span>
+      </label>
+
       <button class="btn btn-orange btn-full" id="stamp-btn" onclick="doStamp()" disabled>
         Stamp with OpenTimestamps
       </button>
@@ -2769,7 +2782,7 @@ let decFile=null, decryptedBlob=null, decryptedName=null;
 // Nostr state
 let nostrPubkey=null;
 let lastPostedEventId=null;
-const CK_VERSION='0.3.6';
+const CK_VERSION='0.3.6a';
 const NOSTR_RELAYS=['wss://relay.damus.io','wss://nos.lol','wss://relay.nostr.band'];
 const NOSTR_TAG='cypherkeep';
 
@@ -3050,6 +3063,7 @@ function downloadOTS() {
 function downloadMetaJSON() {
   if(!currentHash)return;
   const cal=window._calendarUsed||'OpenTimestamps';
+  const cals=window._calendarsUsed||(window._calendarUsed?[window._calendarUsed]:null);
   const otsB64=otsBytes?uint8ToBase64(otsBytes):null;
   const meta={tool:'Cypher Keep',version:CK_VERSION,
     file:currentFile?{name:currentFile.name,size:currentFile.size,type:currentFile.type||'unknown'}:null,
