@@ -5,6 +5,7 @@
   "description": "Test suite for Cypher Keep. The app itself has no dependencies; these tests do.",
   "scripts": { "test": "node run.js" },
   "optionalDependencies": {
-    "javascript-opentimestamps": "^0.4.9"
+    "javascript-opentimestamps": "^0.4.9",
+    "eslint": "^8.57.0"
   }
 }

@@ -148,6 +148,41 @@ section('Verification — fail-closed guarantees');
 // ═══════════════════════════════════════════════════════════
 async function escapingTests() {
 
+
+section('Static analysis');
+{
+  // Would have caught the v0.3.6 scope bug: `cals` used in downloadMetaJSON
+  // but declared inside doStamp.
+  let Linter=null;
+  try{ ({Linter}=require('eslint')); }catch(_){}
+  if(!Linter){ skipped('no undefined identifiers','eslint not installed'); }
+  else {
+    const s=src.lastIndexOf('<script>'), e=src.lastIndexOf('</script>');
+    const js=src.slice(s+8,e);
+    const msgs=new Linter().verify(js,{
+      parserOptions:{ecmaVersion:2022,sourceType:'script'},
+      env:{browser:true,es2022:true},
+      rules:{'no-undef':'error'},
+      globals:{OpenTimestamps:'readonly',age:'readonly',nobleSecp256k1:'readonly'}
+    }).filter(m=>m.ruleId==='no-undef');
+    const names=[...new Set(msgs.map(m=>(m.message.match(/'([^']+)'/)||[])[1]))];
+    ok('no undefined identifiers', msgs.length===0,
+       msgs.length ? names.join(', ') : '');
+  }
+
+  // Would have caught the missing single-calendar checkbox: JS referenced an
+  // element id that no longer existed in the markup.
+  const refd=[...new Set([...src.matchAll(/getElementById\('([a-zA-Z0-9_-]+)'\)/g)].map(m=>m[1]))];
+  const declared=new Set([
+    ...[...src.matchAll(/\bid="([a-zA-Z0-9_-]+)"/g)].map(m=>m[1]),
+    ...[...src.matchAll(/\.id\s*=\s*'([a-zA-Z0-9_-]+)'/g)].map(m=>m[1]),
+    ...[...src.matchAll(/id='([a-zA-Z0-9_-]+)'/g)].map(m=>m[1]),
+  ]);
+  const missing=refd.filter(id=>!declared.has(id));
+  ok('every getElementById target exists in the markup', missing.length===0,
+     missing.length ? 'missing: '+missing.join(', ') : '');
+}
+
 section('External resources — none permitted');
 {
   const loads = (src.match(/(?:src|href)=["'](https?:\/\/[^"']+\.(?:js|css|woff2?))["']/gi) || []);
