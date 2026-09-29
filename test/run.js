@@ -162,6 +162,57 @@ section('External resources — none permitted');
      (src.match(/url\('fonts\/[a-z0-9-]+\.woff2'\)/g) || []).length === 6);
 }
 
+
+section('Proof assembly — multi-calendar');
+{
+  let OTS=null;
+  try{ OTS=require('javascript-opentimestamps'); }catch(_){}
+  if(!OTS){ skipped('multi-branch proof is valid','run npm install'); }
+  else {
+    const mod={};
+    new Function('module','exports',
+      extract('function buildOTS(hb, calendarResponses) {','\n}\n')+'\n}\n'+
+      'function concat(a){const n=a.reduce((s,x)=>s+x.length,0);const o=new Uint8Array(n);let p=0;for(const x of a){o.set(x,p);p+=x.length;}return o;}'+
+      'module.exports={buildOTS};')(mod, mod.exports={});
+    const { buildOTS } = mod.exports;
+
+    const crypto2=require('crypto');
+    const h=crypto2.createHash('sha256').update('test content').digest();
+    const urls=['https://alice.btc.calendar.opentimestamps.org',
+                'https://bob.btc.calendar.opentimestamps.org',
+                'https://finney.calendar.eternitywall.com'];
+
+    // simulate what each calendar returns: a branch continuing from the file hash
+    const branch = url => {
+      const d=OTS.DetachedTimestampFile.fromHash(new OTS.Ops.OpSHA256(), Array.from(h));
+      const a=new OTS.Ops.OpAppend(Array.from(crypto2.randomBytes(8)));
+      const m=a.call(d.timestamp.msg); const t=new OTS.Timestamp(m);
+      t.attestations.push(new OTS.Notary.PendingAttestation(url));
+      d.timestamp.ops.set(a,t);
+      return Buffer.from(d.serializeToBytes()).slice(65);
+    };
+
+    const check = (n) => {
+      const bytes=buildOTS(new Uint8Array(h), urls.slice(0,n).map(u=>new Uint8Array(branch(u))));
+      const parsed=OTS.DetachedTimestampFile.deserialize(Array.from(bytes));
+      const digest=Buffer.from(parsed.fileDigest()).toString('hex');
+      return { digestOk: digest===h.toString('hex'), atts: parsed.timestamp.allAttestations().size };
+    };
+
+    const r3=check(3);
+    ok('3-calendar proof parses and binds to the hash', r3.digestOk);
+    ok('3-calendar proof carries 3 attestations', r3.atts===3, 'got '+r3.atts);
+
+    const r1=check(1);
+    ok('1-calendar proof still valid (single-calendar mode)', r1.digestOk && r1.atts===1,
+       'digest '+r1.digestOk+' atts '+r1.atts);
+
+    const r2=check(2);
+    ok('partial success (2 of 3) produces a valid proof', r2.digestOk && r2.atts===2,
+       'digest '+r2.digestOk+' atts '+r2.atts);
+  }
+}
+
 section('Escaping — attribute-context injection');
 {
   const mod = {};
