@@ -57,7 +57,12 @@ section('Version consistency');
   ok('no hardcoded version strings remain in metadata', hardcoded.length === 0,
      hardcoded.length ? 'found: ' + hardcoded.join(', ') : '');
   const uses = (src.match(/version:\s*CK_VERSION/g) || []).length;
-  ok('all 3 metadata exports use CK_VERSION', uses === 3, 'found ' + uses);
+  ok('CK_VERSION referenced from exactly one place', uses === 1, 'found ' + uses);
+  ok('metadata is produced by a single builder',
+     (src.match(/function buildMetadata\(/g) || []).length === 1 &&
+     (src.match(/buildMetadata\(\{/g) || []).length === 3,
+     'builders: ' + (src.match(/function buildMetadata\(/g)||[]).length +
+     ', call sites: ' + (src.match(/buildMetadata\(\{/g)||[]).length);
   if (defs) console.log('    \x1b[2mversion: ' + defs[1] + '\x1b[0m');
 }
 
@@ -181,6 +186,57 @@ section('Static analysis');
   const missing=refd.filter(id=>!declared.has(id));
   ok('every getElementById target exists in the markup', missing.length===0,
      missing.length ? 'missing: '+missing.join(', ') : '');
+}
+
+
+section('Metadata — one schema');
+{
+  const mod={};
+  const SCHEMA=['tool','version','file','sha256','timestamp','note','ots_file',
+    'ots_proof_base64','calendar','calendars','status','bitcoin_block',
+    'bitcoin_block_time','nostr_event_id','nostr_nevent','nostr_relays','arweave_id'];
+  try{
+    new Function('module','exports','window','CK_VERSION','uint8ToBase64',
+      extract('function buildMetadata(o) {','\nfunction saveMetadata') +
+      'module.exports={buildMetadata};'
+    )(mod, mod.exports={}, {}, '0.3.7', ()=> 'BASE64');
+  }catch(e){ ok('buildMetadata is extractable', false, e.message); }
+  const B=mod.exports.buildMetadata;
+
+  if(B){
+    const pending = B({file:{name:'a.jpg',size:10,type:'image/jpeg'}, hash:'a'.repeat(64),
+      stampedAt:'2026-10-06T04:00:00Z', note:'hi', otsName:'a.jpg.ots', otsBytes:new Uint8Array([1]),
+      calendar:'https://alice.example', calendars:['https://alice.example','bob.example']});
+    const verified = B({hash:'b'.repeat(64), otsName:'b.ots', otsBytes:new Uint8Array([1]),
+      calendar:'alice.example', blockHeight:944652, blockTime:1760000000});
+    const bare = B({});
+
+    const keys = o => Object.keys(o).sort().join(',');
+    ok('all three shapes share one key set',
+       keys(pending)===keys(verified) && keys(verified)===keys(bare),
+       'pending vs verified differ');
+    ok('key set matches the documented schema',
+       keys(pending)===SCHEMA.slice().sort().join(','),
+       'got ' + keys(pending));
+
+    ok('unknown values are null, never omitted',
+       bare.file===null && bare.sha256===null && bare.timestamp===null &&
+       bare.note===null && bare.calendars===null);
+
+    ok('calendar always carries a scheme',
+       verified.calendar==='https://alice.example' &&
+       pending.calendars.every(c=>c.startsWith('https://')),
+       verified.calendar+' | '+JSON.stringify(pending.calendars));
+
+    ok('status derives from block height',
+       pending.status==='pending' && verified.status==='confirmed');
+
+    ok('blank note becomes null', B({note:'   '}).note===null);
+
+    ok('bitcoin_block_time is ISO 8601',
+       verified.bitcoin_block_time===new Date(1760000000*1000).toISOString(),
+       verified.bitcoin_block_time);
+  }
 }
 
 section('External resources — none permitted');
