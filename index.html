@@ -2775,14 +2775,14 @@ footer {
 let currentHash=null, currentFile=null;
 let otsBytes=null, otsFilename=null, stampedAt=null;
 let inputMode='file';
-let verifyHash=null, verifyOTS=null, verifyOTSName=null;
+let verifyHash=null, verifyOTS=null, verifyOTSName=null, verifyFile=null;
 let encFile=null, encryptedBlob=null, encryptedName=null;
 let decFile=null, decryptedBlob=null, decryptedName=null;
 
 // Nostr state
 let nostrPubkey=null;
 let lastPostedEventId=null;
-const CK_VERSION='0.3.6a';
+const CK_VERSION='0.3.7';
 const NOSTR_RELAYS=['wss://relay.damus.io','wss://nos.lol','wss://relay.nostr.band'];
 const NOSTR_TAG='cypherkeep';
 
@@ -3060,30 +3060,84 @@ function downloadOTS() {
   toast('Downloading '+otsFilename);
 }
 
-function downloadMetaJSON() {
-  if(!currentHash)return;
-  const cal=window._calendarUsed||'OpenTimestamps';
-  const cals=window._calendarsUsed||(window._calendarUsed?[window._calendarUsed]:null);
-  const otsB64=otsBytes?uint8ToBase64(otsBytes):null;
-  const meta={tool:'Cypher Keep',version:CK_VERSION,
-    file:currentFile?{name:currentFile.name,size:currentFile.size,type:currentFile.type||'unknown'}:null,
-    sha256:currentHash,timestamp:stampedAt||new Date().toISOString(),
-    ots_file:otsFilename||null,
-    ots_proof_base64:otsB64,
-    calendar:cal,
-    calendars:cals,
-    bitcoin_block:null,
-    bitcoin_block_time:null,
-    status:'pending',
-    note:document.getElementById('note-input').value.trim()||null,
-    nostr_event_id:window._lastNostrEventId||null,
-    nostr_nevent:window._lastNostrNevent||null,
-    nostr_relays:window._lastNostrRelays||null,
-    arweave_id:null};
-  const baseName=(currentFile?currentFile.name:'content');
-  const suffix=window._lastNostrEventId?'.ckmeta.nostr.json':'.ckmeta.json';
-  dlBlob(new Blob([JSON.stringify(meta,null,2)],{type:'application/json'}), baseName+suffix);
+// ── METADATA ──
+// One definition of a Cypher Keep metadata file. Every export goes through
+// here, so the three download buttons cannot drift apart. Keys are always
+// present; anything genuinely unknown is null rather than omitted.
+//
+// Note on `timestamp`: OpenTimestamps proofs carry no submission time, so this
+// is only Cypher Keep's local record of when the stamp button was pressed. It
+// is informational. The verifiable time is bitcoin_block_time.
+function buildMetadata(o) {
+  o = o || {};
+  const withScheme = u => {
+    if(!u) return null;
+    const s=String(u).trim().replace(/\/+$/,'');
+    return /^https?:\/\//i.test(s) ? s : 'https://'+s;
+  };
+  const cals = Array.isArray(o.calendars) && o.calendars.length
+    ? o.calendars.map(withScheme)
+    : (o.calendar ? [withScheme(o.calendar)] : null);
+
+  return {
+    tool: 'Cypher Keep',
+    version: CK_VERSION,
+
+    file: o.file ? {name:o.file.name, size:o.file.size, type:o.file.type||'unknown'} : null,
+    sha256: o.hash || null,
+    timestamp: o.stampedAt || null,
+    note: (o.note && String(o.note).trim()) ? String(o.note).trim() : null,
+
+    ots_file: o.otsName || null,
+    ots_proof_base64: o.otsBytes ? uint8ToBase64(o.otsBytes) : null,
+    calendar: withScheme(o.calendar) || (cals ? cals[0] : null),
+    calendars: cals,
+
+    status: o.blockHeight ? 'confirmed' : 'pending',
+    bitcoin_block: o.blockHeight || null,
+    bitcoin_block_time: o.blockTime ? new Date(o.blockTime*1000).toISOString() : null,
+
+    nostr_event_id: window._lastNostrEventId || null,
+    nostr_nevent: window._lastNostrNevent || null,
+    nostr_relays: window._lastNostrRelays || null,
+
+    arweave_id: null
+  };
+}
+
+function saveMetadata(meta, baseName, confirmed) {
+  const suffix = (confirmed ? '.confirmed' : '') +
+                 (window._lastNostrEventId ? '.nostr' : '') + '.ckmeta.json';
+  dlBlob(new Blob([JSON.stringify(meta,null,2)],{type:'application/json'}),
+         (baseName||'content') + suffix);
   toast('Metadata downloaded');
+}
+
+// Read the calendar list out of a proof rather than session state, so it is
+// correct even for a proof this browser did not create.
+function calendarsFromProof(bytes) {
+  try {
+    if(typeof OpenTimestamps === 'undefined' || !bytes) return null;
+    const d=OpenTimestamps.DetachedTimestampFile.deserialize(Array.from(bytes));
+    const out=[];
+    d.timestamp.allAttestations().forEach(a=>{ if(a && a.uri) out.push(a.uri); });
+    return out.length ? [...new Set(out)] : null;
+  } catch(_) { return null; }
+}
+
+function downloadMetaJSON() {
+  if(!currentHash) return;
+  const meta = buildMetadata({
+    file: currentFile,
+    hash: currentHash,
+    stampedAt: stampedAt,
+    note: document.getElementById('note-input') ? document.getElementById('note-input').value : null,
+    otsName: otsFilename,
+    otsBytes: otsBytes,
+    calendar: window._calendarUsed,
+    calendars: window._calendarsUsed
+  });
+  saveMetadata(meta, currentFile ? currentFile.name : 'content', false);
 }
 
 function copySummary() {
@@ -3095,7 +3149,7 @@ function copySummary() {
     '─'.repeat(48),'',
     currentFile?`File:     ${currentFile.name}`:'',
     currentFile?`Size:     ${fmtBytes(currentFile.size)}`:'',
-    `Stamped:  ${stampedAt||new Date().toISOString()}`,
+    stampedAt?`Submitted: ${stampedAt} (local record)`:'',
     '',`SHA-256:  ${currentHash}`,'',
     `OTS Proof: ${otsFilename||'pending'}`,
     otsB64?`OTS Proof (base64):\n${otsB64}`:'',
@@ -3214,7 +3268,7 @@ function setVerifyMode(mode) {
   document.getElementById('v-mode-hash-btn').classList.toggle('active',mode==='hash');
   document.getElementById('v-file-wrap').classList.toggle('hidden',mode!=='file');
   document.getElementById('v-hash-wrap').classList.toggle('hidden',mode!=='hash');
-  verifyHash=null;
+  verifyHash=null; verifyFile=null;
   document.getElementById('v-file-chip').classList.remove('show');
   checkVerifyReady();
 }
@@ -3280,6 +3334,7 @@ async function loadVerifyFile(f) {
   const buf=await f.arrayBuffer();
   const dig=await crypto.subtle.digest('SHA-256',buf);
   verifyHash=Array.from(new Uint8Array(dig)).map(b=>b.toString(16).padStart(2,'0')).join('');
+  verifyFile=f;   // retained so metadata exports can record name, size and type
   showChip('v-file-chip','v-chip-ext','v-chip-name','v-chip-size',f);
   checkVerifyReady();
 }
@@ -3671,24 +3726,21 @@ function downloadVerifyMetaJSON(blockHeight, calendar, hash, proofName, blockTim
   const _c = window._confirmCtx || {};
   if(blockHeight === undefined) { blockHeight = _c.blockHeight; calendar = _c.calShort;
                                   hash = _c.hash; proofName = _c.proof; blockTimestamp = _c.blockTimestamp; }
-  const otsB64=window._upgradedOTSBytes?uint8ToBase64(window._upgradedOTSBytes):(verifyOTS?uint8ToBase64(verifyOTS):null);
-  const meta={
-    tool:'Cypher Keep',version:CK_VERSION,
-    sha256:hash,
-    ots_file:proofName||null,
-    ots_proof_base64:otsB64,
-    calendar:calendar||null,
-    bitcoin_block:blockHeight||null,
-    bitcoin_block_time:blockTimestamp?new Date(blockTimestamp*1000).toISOString():null,
-    status:'confirmed',
-    nostr_event_id:window._lastNostrEventId||null,
-    nostr_nevent:window._lastNostrNevent||null,
-    nostr_relays:window._lastNostrRelays||null,
-    arweave_id:null
-  };
-  dlBlob(new Blob([JSON.stringify(meta,null,2)],{type:'application/json'}),
-    (proofName?proofName.replace(/\.ots$/,''):'content')+'.confirmed.ckmeta.json');
-  toast('Metadata downloaded');
+  const bytes = window._upgradedOTSBytes || verifyOTS || null;
+  const meta = buildMetadata({
+    // The Verify tab knows the original file whenever one was uploaded.
+    file: verifyFile || null,
+    hash: hash,
+    stampedAt: null,   // not recoverable from a proof — see buildMetadata
+    note: null,
+    otsName: proofName || verifyOTSName,
+    otsBytes: bytes,
+    calendar: calendar,
+    calendars: calendarsFromProof(bytes),
+    blockHeight: blockHeight,
+    blockTime: blockTimestamp
+  });
+  saveMetadata(meta, proofName ? proofName.replace(/\.ots$/,'') : 'content', true);
 }
 
 // ── MY STAMPS — toggle metadata dropdown ──
@@ -3708,7 +3760,7 @@ function verifyFromStamp(hash) {
   // Clear all previous verification state
   verifyOTS=null;
   verifyOTSName=null;
-  verifyHash=null;
+  verifyHash=null; verifyFile=null;
   window._upgradedOTSBytes=null;
   const resultEl=document.getElementById('verify-result');
   if(resultEl){resultEl.innerHTML='';resultEl.classList.remove('show');}
@@ -3805,27 +3857,20 @@ function copyConfirmedSummary() {
 // ── STAMP TAB — download confirmed metadata JSON ──
 function downloadStampConfirmedMetaJSON() {
   if(!currentHash) return;
-  const bh=window._stampConfirmedBlock;
-  const otsB64=window._upgradedOTSBytes?uint8ToBase64(window._upgradedOTSBytes):(otsBytes?uint8ToBase64(otsBytes):null);
-  const meta={
-    tool:'Cypher Keep',version:CK_VERSION,
-    file:currentFile?{name:currentFile.name,size:currentFile.size,type:currentFile.type||'unknown'}:null,
-    sha256:currentHash,
-    timestamp:stampedAt||new Date().toISOString(),
-    ots_file:otsFilename||null,
-    ots_proof_base64:otsB64,
-    calendar:window._calendarUsed||null,
-    bitcoin_block:bh||null,
-    bitcoin_block_time:window._stampConfirmedBlockTime?new Date(window._stampConfirmedBlockTime*1000).toISOString():null,
-    status:bh?'confirmed':'pending',
-    nostr_event_id:window._lastNostrEventId||null,
-    nostr_nevent:window._lastNostrNevent||null,
-    nostr_relays:window._lastNostrRelays||null,
-    arweave_id:null
-  };
-  dlBlob(new Blob([JSON.stringify(meta,null,2)],{type:'application/json'}),
-    (currentFile?currentFile.name:'content')+'.confirmed.ckmeta.json');
-  toast('Confirmed metadata downloaded');
+  const bytes = window._upgradedOTSBytes || otsBytes || null;
+  const meta = buildMetadata({
+    file: currentFile,
+    hash: currentHash,
+    stampedAt: stampedAt,
+    note: document.getElementById('note-input') ? document.getElementById('note-input').value : null,
+    otsName: otsFilename,
+    otsBytes: bytes,
+    calendar: window._calendarUsed,
+    calendars: window._calendarsUsed || calendarsFromProof(bytes),
+    blockHeight: window._stampConfirmedBlock,
+    blockTime: window._stampConfirmedBlockTime
+  });
+  saveMetadata(meta, currentFile ? currentFile.name : 'content', true);
 }
 
 // ── STAMP TAB — announce confirmation on Nostr ──
@@ -3920,7 +3965,7 @@ function buildConfirmContent(hash, calendar, proofName, blockHeight, blockTimest
   const stampData=[
     `File: ${fname}`,
     `SHA-256: ${hash}`,
-    `Stamped: ${stampedAt||'(unknown)'}`,
+    `${stampedAt?('Submitted: '+stampedAt+' (local record)'):''}`,
     `Mined:   ${minedStr}`,
     `Calendar: ${calendar||'OpenTimestamps'}`,
     `Status: CONFIRMED`,
@@ -4875,7 +4920,7 @@ function buildNostrContent() {
   const stampData=[
     `File: ${fname}`,
     `SHA-256: ${currentHash}`,
-    `Stamped: ${stampedAt||new Date().toISOString()}`,
+    stampedAt?`Submitted: ${stampedAt} (local record)`:'',
     `Calendar: ${window._calendarUsed||'OpenTimestamps'}`,
     `Status: Pending Bitcoin block confirmation (~1–2 hours)`,
     '',
@@ -5045,19 +5090,37 @@ async function loadStamps() {
       return;
     }
 
-    // Deduplicate by sha256 tag, newest first
-    const seen=new Set();
-    const unique=results
+    // Collapse to one entry per stamped hash, newest event first. A file can
+    // have several events — the original stamp note and later confirmation
+    // notes — and they do not all carry the same tags. Confirmation notes have
+    // no filename tag, so keeping only the newest event loses the filename.
+    // Merge missing tags in from older events for the same hash instead.
+    const byHash=new Map();
+    results
       .sort((a,b)=>b.event.created_at-a.event.created_at)
-      .filter(({event})=>{
-        const h=getTag(event,'sha256');
-        if(!h||seen.has(h)){return false;}
-        seen.add(h);return true;
+      .forEach(entry=>{
+        const h=getTag(entry.event,'sha256');
+        if(!h) return;
+        if(!byHash.has(h)){
+          byHash.set(h,{event:entry.event, relays:[...entry.relays], extraTags:{}});
+          return;
+        }
+        // older event for a hash already seen — borrow tags the newest lacks
+        const kept=byHash.get(h);
+        entry.relays.forEach(r=>{ if(!kept.relays.includes(r)) kept.relays.push(r); });
+        ['filename','size','type'].forEach(t=>{
+          if(!getTag(kept.event,t) && !kept.extraTags[t]){
+            const v=getTag(entry.event,t);
+            if(v) kept.extraTags[t]=v;
+          }
+        });
       });
+    const unique=Array.from(byHash.values());
 
-    unique.forEach(({event:e, relays:foundOn}, idx)=>{
+    unique.forEach(({event:e, relays:foundOn, extraTags}, idx)=>{
+      const merged=extraTags||{};
       const hash=getTag(e,'sha256')||'—';
-      const fname=getTag(e,'filename')||'Unknown file';
+      const fname=getTag(e,'filename')||merged.filename||'Unknown file';
       const ts=new Date(e.created_at*1000);
       const dateStr=ts.toLocaleDateString('en-US',{year:'numeric',month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
       const njumpUrl=`https://njump.me/${encodeURIComponent(e.id)}`;
