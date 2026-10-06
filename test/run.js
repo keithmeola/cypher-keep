@@ -239,6 +239,85 @@ section('Metadata — one schema');
   }
 }
 
+
+
+section('Calendar parsing');
+{
+  let OTS=null; try{ OTS=require('javascript-opentimestamps'); }catch(_){}
+  const mod={};
+  new Function('module','exports','TextDecoder',
+    extract('function readVarint(buf, pos) {','\n// Check calendar confirmation') +
+    'module.exports={parseCalendarUrl,readVarint};'
+  )(mod, mod.exports={}, TextDecoder);
+  const {parseCalendarUrl}=mod.exports;
+
+  if(!OTS){ skipped('calendar URL is bounded by its length prefix','run npm install'); }
+  else {
+    const crypto2=require('crypto');
+    const h=crypto2.createHash('sha256').update('x').digest();
+    const build=(urls)=>{
+      const d=OTS.DetachedTimestampFile.fromHash(new OTS.Ops.OpSHA256(), Array.from(h));
+      urls.forEach(u=>{
+        const a=new OTS.Ops.OpAppend(Array.from(crypto2.randomBytes(8)));
+        const m=a.call(d.timestamp.msg); const t=new OTS.Timestamp(m);
+        t.attestations.push(new OTS.Notary.PendingAttestation(u));
+        d.timestamp.ops.set(a,t);
+      });
+      return new Uint8Array(d.serializeToBytes());
+    };
+
+    const one=build(['https://alice.btc.calendar.opentimestamps.org']);
+    ok('single-calendar proof parses cleanly',
+       parseCalendarUrl(one)==='https://alice.btc.calendar.opentimestamps.org',
+       String(parseCalendarUrl(one)));
+
+    // The v0.3.7 bug: a fixed-width scan ran past the URL into the next branch.
+    const three=build(['https://alice.btc.calendar.opentimestamps.org',
+                       'https://bob.btc.calendar.opentimestamps.org',
+                       'https://finney.calendar.eternitywall.com']);
+    const got=parseCalendarUrl(three);
+    ok('multi-branch proof does not bleed into the next branch',
+       got==='https://alice.btc.calendar.opentimestamps.org', String(got));
+    ok('result is a clean URL with no binary residue',
+       /^https:\/\/[\x21-\x7e]+$/.test(got||'') && !/[^\x21-\x7e]/.test(got||''),
+       String(got));
+  }
+}
+
+section('Relay handling');
+{
+  const mod={};
+  new Function('module','exports','document','DEFAULT_RELAYS','customRelays',
+    extract('function normalizeRelayUrl(u) {','\nfunction queryRelayForStamps') +
+    'module.exports={getActiveRelays,normalizeRelayUrl};'
+  )(mod, mod.exports={},
+    {getElementById:(id)=>({checked:true})},
+    [{id:'relay-damus',url:'wss://relay.damus.io'},{id:'relay-nosio',url:'wss://nos.lol'}],
+    ['wss://relay.damus.io','wss://relay.damus.io/','wss://custom.example']);
+  const {getActiveRelays, normalizeRelayUrl}=mod.exports;
+
+  const active=getActiveRelays();
+  ok('duplicate relays are collapsed', active.length===3,
+     'got '+active.length+': '+active.join(', '));
+  ok('a default also saved as custom is queried once',
+     active.filter(u=>normalizeRelayUrl(u)==='wss://relay.damus.io').length===1);
+  ok('trailing slash and case do not create duplicates',
+     normalizeRelayUrl('WSS://Relay.Example.com/')===normalizeRelayUrl('wss://relay.example.com'));
+
+  ok('relay outcomes are classified, not just success/fail',
+     ['ok','timeout','unreachable','error','closed'].every(o=>src.includes("'"+o+"'")),
+     'missing outcome labels');
+  ok('status line reports relays queried and responded',
+     src.includes('queried ${rs.length} relay') && src.includes('responded'));
+}
+
+section('Footer');
+{
+  ok('version is rendered from CK_VERSION, not hardcoded',
+     src.includes("id=\"footer-version\"") && src.includes("'v'+CK_VERSION"));
+  ok('no stale phase label', !/Cypher Keep · Phase \d/.test(src));
+}
+
 section('External resources — none permitted');
 {
   const loads = (src.match(/(?:src|href)=["'](https?:\/\/[^"']+\.(?:js|css|woff2?))["']/gi) || []);
