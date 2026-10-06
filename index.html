@@ -2469,12 +2469,26 @@ footer {
 
   <div class="page-header">
     <h1>My Stamps</h1>
-    <p>Your Cypher Keep stamps posted to Nostr, queried live from public relays. Each entry links to the permanent Nostr event carrying your hash and pending OTS proof.</p>
+    <p>Your Cypher Keep stamps posted to Nostr, queried live from public relays. Each entry links to the Nostr event carrying your hash and its OTS proof.</p>
   </div>
 
   <div class="relay-status">
     <div class="relay-dot" id="relay-dot"></div>
     <span id="relay-status-text">Not connected</span>
+    <button id="relay-panel-toggle" onclick="toggleRelayPanel()"
+      style="margin-left:10px;background:none;border:none;color:var(--text-tertiary);font-family:var(--font-sans);font-size:13px;cursor:pointer;padding:0;text-decoration:underline">Relays</button>
+  </div>
+
+  <!-- Relay controls. Collapsed by default; the status line above always
+       reports what happened, so a failing relay is visible without expanding. -->
+  <div id="relay-panel" style="display:none;margin:12px 0 18px;padding:12px 14px;background:var(--bg-card);border:1px solid var(--border);border-radius:8px">
+    <div class="field-label" style="margin-bottom:8px">Relays queried for your stamps</div>
+    <div id="relay-panel-list"></div>
+    <div class="relay-custom-row" style="margin-top:10px">
+      <input class="input mono" id="ms-custom-relay" type="text" placeholder="wss://relay.example.com" spellcheck="false" autocomplete="off">
+      <button class="btn btn-secondary" onclick="addCustomRelayFromStamps()" style="padding:8px 14px;font-size:14px">Add</button>
+    </div>
+    <div class="field-hint" style="margin-top:8px">Changes apply the next time you refresh. Relay choices are saved in this browser.</div>
   </div>
 
   <div id="stamps-container">
@@ -2744,7 +2758,7 @@ footer {
   <div class="container">
     <div class="footer-inner">
       <div class="footer-left">
-        Cypher Keep · Phase 2 ·
+        Cypher Keep · <span id="footer-version"></span> ·
         <a href="https://github.com/keithmeola/cypher-keep" target="_blank" rel="noopener">Open source</a> ·
         SHA-256 via Web Crypto API ·
         <a href="https://opentimestamps.org" target="_blank" rel="noopener">OpenTimestamps</a>
@@ -2782,9 +2796,88 @@ let decFile=null, decryptedBlob=null, decryptedName=null;
 // Nostr state
 let nostrPubkey=null;
 let lastPostedEventId=null;
-const CK_VERSION='0.3.7';
+const CK_VERSION='0.3.8';
 const NOSTR_RELAYS=['wss://relay.damus.io','wss://nos.lol','wss://relay.nostr.band'];
 const NOSTR_TAG='cypherkeep';
+
+// ── RELAY PANEL (My Stamps) ──
+function toggleRelayPanel() {
+  const p=document.getElementById('relay-panel');
+  if(!p) return;
+  const open=p.style.display==='none';
+  p.style.display=open?'block':'none';
+  if(open) renderRelayPanel();
+}
+
+// Mirror of the relay checkboxes that live in the Stamp tab. Both edit the
+// same state, so toggling here updates there and vice versa.
+function renderRelayPanel(status) {
+  const box=document.getElementById('relay-panel-list');
+  if(!box) return;
+  const byUrl={};
+  (status||window._lastRelayStatus||[]).forEach(s=>{ byUrl[normalizeRelayUrl(s.url)]=s; });
+
+  const dot=o=>{
+    const c = o==='ok' ? 'var(--success)' : (o==='timeout' ? 'var(--warning)' : 'var(--error)');
+    return `<span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${c};margin-right:7px;flex-shrink:0"></span>`;
+  };
+  const label=s=>{
+    if(!s) return '';
+    if(s.outcome==='ok') return s.returned ? `${s.returned} event${s.returned===1?'':'s'}` : 'no stamps';
+    if(s.outcome==='timeout') return 'timed out';
+    if(s.outcome==='closed') return 'closed early';
+    return 'unreachable';
+  };
+
+  let html='';
+  DEFAULT_RELAYS.forEach(r=>{
+    const el=document.getElementById(r.id);
+    const on=el?el.checked:true;
+    const s=byUrl[normalizeRelayUrl(r.url)];
+    html+=`<div class="relay-check-row" style="display:flex;align-items:center;gap:8px">
+      <input type="checkbox" ${on?'checked':''} data-mirror-relay="${escHtml(r.id)}">
+      <label style="flex:1">${s?dot(s.outcome):''}${escHtml(r.url.replace('wss://',''))}</label>
+      <span style="font-size:12px;color:var(--text-disabled)">${escHtml(label(s))}</span>
+    </div>`;
+  });
+  customRelays.forEach(url=>{
+    const s=byUrl[normalizeRelayUrl(url)];
+    html+=`<div class="relay-check-row" style="display:flex;align-items:center;gap:8px">
+      <input type="checkbox" checked disabled>
+      <label style="flex:1">${s?dot(s.outcome):''}${escHtml(url.replace('wss://',''))}</label>
+      <span style="font-size:12px;color:var(--text-disabled)">${escHtml(label(s))}</span>
+      <button data-remove-relay-ms="${escHtml(url)}" style="background:none;border:none;color:var(--text-tertiary);cursor:pointer;font-size:14px;padding:0 4px" title="Remove">×</button>
+    </div>`;
+  });
+  box.innerHTML=html || '<div style="font-size:13px;color:var(--text-disabled)">No relays selected.</div>';
+
+  box.querySelectorAll('[data-mirror-relay]').forEach(cb=>{
+    cb.addEventListener('change',()=>{
+      const target=document.getElementById(cb.getAttribute('data-mirror-relay'));
+      if(target){ target.checked=cb.checked; saveRelayPrefs(); }
+    });
+  });
+  box.querySelectorAll('[data-remove-relay-ms]').forEach(b=>{
+    b.addEventListener('click',()=>{ removeCustomRelay(b.getAttribute('data-remove-relay-ms')); renderRelayPanel(); });
+  });
+}
+
+function addCustomRelayFromStamps() {
+  const input=document.getElementById('ms-custom-relay');
+  if(!input) return;
+  const url=input.value.trim();
+  if(!url){ return; }
+  if(!/^wss:\/\//i.test(url)){ toast('Relay URL must start with wss://',true); return; }
+  if(customRelays.some(u=>normalizeRelayUrl(u)===normalizeRelayUrl(url))){
+    toast('That relay is already in the list',true); return;
+  }
+  addCustomRelayToList(url);
+  customRelays.push(url);
+  saveRelayPrefs();
+  input.value='';
+  renderRelayPanel();
+  toast('Relay added — refresh to query it');
+}
 
 // ── NAV ──
 function switchView(name) {
@@ -3368,10 +3461,15 @@ async function doVerify() {
     return;
   }
 
+  const vbReset=document.getElementById('verify-btn');
+  if(vbReset) vbReset.textContent='Verify proof & check Bitcoin confirmation';
   el.innerHTML=pendingCheckHTML();
   toast('Checking proof…');
 
-  const calUrl=parseCalendarUrl(verifyOTS);
+  // Prefer the parsed proof over byte scanning — it is correct for
+  // multi-branch and upgraded proofs, where a raw scan over-reads.
+  const calFromProof=calendarsFromProof(verifyOTS);
+  const calUrl=(calFromProof && calFromProof[0]) || parseCalendarUrl(verifyOTS);
   const calShort=(calUrl||'opentimestamps.org').replace('https://','').replace(/\/$/,'');
 
   let r;
@@ -3410,6 +3508,11 @@ async function doVerify() {
 
   // pending — proof is valid and binds to the content, block not mined yet
   el.innerHTML=okHTML(hash,verifyOTSName)+pendingAttestHTML(r.message);
+  // The proof is valid but not yet in a block. Re-running this check is the
+  // normal next step, so say so rather than inviting a seemingly redundant
+  // re-verify. Verification still runs in full — it is the same network work.
+  const vb=document.getElementById('verify-btn');
+  if(vb) vb.textContent='Check again for Bitcoin confirmation';
   toast('Proof valid — Bitcoin timestamp pending');
 }
 
@@ -3419,16 +3522,35 @@ async function doVerify() {
 // Loaded via OTS library tag from opentimestamps.org — handles all op-tree parsing correctly.
 
 // Keep a simple URL parser for fallback display purposes only
+// Fallback calendar parser, used only when the OpenTimestamps library is
+// unavailable. The previous version read a fixed 200-byte window and stripped
+// unprintable bytes, which on a multi-branch or upgraded proof ran past the
+// end of the URL and into the next branch. It now follows the varint length
+// prefixes the format actually specifies.
+function readVarint(buf, pos) {
+  let shift=0, result=0;
+  while(pos < buf.length){
+    const b=buf[pos++];
+    result |= (b & 0x7f) << shift;
+    if(!(b & 0x80)) return {value:result, pos};
+    shift += 7;
+    if(shift > 28) break;
+  }
+  return null;
+}
+
 function parseCalendarUrl(ots) {
   const PENDING_TAG=[0x83,0xdf,0xe3,0x0d,0x2e,0xf9,0x0c,0x8e];
   outer: for(let i=0;i<ots.length-8;i++){
     for(let j=0;j<8;j++) if(ots[i+j]!==PENDING_TAG[j]) continue outer;
-    let pos=i+8+1; // skip tag + length byte
-    const slice=ots.slice(pos, Math.min(pos+200, ots.length));
-    const raw=new TextDecoder().decode(slice);
-    const httpIdx=raw.indexOf('http');
-    if(httpIdx<0) return null;
-    return raw.slice(httpIdx).replace(/[^\x21-\x7e]/g,'').trim()||null;
+    const payload=readVarint(ots, i+8);          // attestation payload length
+    if(!payload) return null;
+    const uri=readVarint(ots, payload.pos);      // length of the URI itself
+    if(!uri || uri.value<=0 || uri.value>512) return null;
+    const end=uri.pos+uri.value;
+    if(end>ots.length) return null;
+    const url=new TextDecoder().decode(ots.slice(uri.pos, end)).trim();
+    return /^https?:\/\/[\x21-\x7e]+$/.test(url) ? url : null;
   }
   return null;
 }
@@ -4826,13 +4948,20 @@ function copyNpub() {
 }
 
 // ── RELAY MANAGEMENT ──
+function normalizeRelayUrl(u) {
+  return String(u||'').trim().replace(/\/+$/,'').toLowerCase();
+}
+
 function getActiveRelays() {
-  const active=[];
+  // Deduplicate: a relay can appear both as a default and as a saved custom
+  // entry, which previously opened two sockets to the same host.
+  const seen=new Set(), active=[];
+  const add=u=>{ const k=normalizeRelayUrl(u); if(k && !seen.has(k)){ seen.add(k); active.push(u); } };
   DEFAULT_RELAYS.forEach(r=>{
     const el=document.getElementById(r.id);
-    if(el&&el.checked) active.push(r.url);
+    if(el&&el.checked) add(r.url);
   });
-  customRelays.forEach(url=>active.push(url));
+  customRelays.forEach(add);
   return active;
 }
 
@@ -5063,6 +5192,7 @@ async function loadStamps() {
 
   try {
     const queryResult=await queryRelayForStamps(nostrPubkey);
+    window._lastRelayStatus=queryResult.relayStatus||[];
     const results=queryResult.events;
     const rejects=queryResult.rejects;
     loading.style.display='none';
@@ -5083,10 +5213,26 @@ async function loadStamps() {
       list.appendChild(warn);
     }
 
+    // Say what actually happened. "no stamps found" is ambiguous on its own —
+    // it could mean every relay answered and had nothing, or that none
+    // answered at all. Those are very different and need to look different.
+    const rs=window._lastRelayStatus||[];
+    const okCount=rs.filter(r=>r.outcome==='ok').length;
+    const badCount=rs.length-okCount;
+    const relaySummary=rs.length
+      ? `queried ${rs.length} relay${rs.length===1?'':'s'} · ${okCount} responded` +
+        (badCount?` · ${badCount} failed`:'')
+      : '';
+    if(document.getElementById('relay-panel') &&
+       document.getElementById('relay-panel').style.display!=='none') renderRelayPanel();
+
     if(!results||results.length===0){
       empty.style.display='block';
       dot.className='relay-dot ok';
-      statusTxt.textContent='Connected — no stamps found';
+      statusTxt.textContent=relaySummary
+        ? relaySummary+' · no stamps found'
+        : 'Connected — no stamps found';
+      dot.className='relay-dot '+(badCount&&!okCount?'fail':'ok');
       return;
     }
 
@@ -5164,7 +5310,8 @@ async function loadStamps() {
     });
 
     dot.className='relay-dot ok';
-    statusTxt.textContent=`${unique.length} stamp${unique.length===1?'':'s'} found`;
+    statusTxt.textContent=(relaySummary?relaySummary+' · ':'')+
+      `${unique.length} stamp${unique.length===1?'':'s'} found`;
   } catch(e) {
     loading.style.display='none';
     document.getElementById('refresh-stamps-btn').disabled=false;
@@ -5185,19 +5332,20 @@ function queryRelayForStamps(pubkey) {
     try {
       const ws=new WebSocket(url);
       const subId='ck-'+Math.random().toString(36).substring(2,8);
-      const timer=setTimeout(()=>{if(!done){done=true;ws.close();resolve({relay:url,events});}},6000);
-      ws.onopen=()=>ws.send(JSON.stringify(['REQ',subId,filter]));
+      let opened=false;
+      const timer=setTimeout(()=>{if(!done){done=true;ws.close();resolve({relay:url,events,outcome:opened?'timeout':'unreachable'});}},6000);
+      ws.onopen=()=>{opened=true;ws.send(JSON.stringify(['REQ',subId,filter]));};
       ws.onmessage=e=>{
         try {
           const d=JSON.parse(e.data);
           if(!Array.isArray(d))return;
           if(d[0]==='EVENT'&&d[1]===subId&&d[2]) events.push(d[2]);
-          if(d[0]==='EOSE'){clearTimeout(timer);done=true;ws.close();resolve({relay:url,events});}
+          if(d[0]==='EOSE'){clearTimeout(timer);done=true;ws.close();resolve({relay:url,events,outcome:'ok'});}
         }catch(_){}
       };
-      ws.onerror=()=>{if(!done){done=true;ws.close();resolve({relay:url,events});}};
-      ws.onclose=()=>{if(!done){done=true;resolve({relay:url,events});}};
-    }catch(_){resolve({relay:url,events});}
+      ws.onerror=()=>{if(!done){done=true;clearTimeout(timer);ws.close();resolve({relay:url,events,outcome:'error'});}};
+      ws.onclose=()=>{if(!done){done=true;clearTimeout(timer);resolve({relay:url,events,outcome:opened?'closed':'error'});}};
+    }catch(_){resolve({relay:url,events,outcome:'error'});}
   }))).then(async results=>{
     // Verify every event before it can reach the UI. Events that fail are
     // dropped and counted per relay so the user learns which relay misbehaved.
@@ -5222,13 +5370,25 @@ function queryRelayForStamps(pubkey) {
         eventMap.get(ev.id).relays.push(relay);
       }
     }
-    return {events:Array.from(eventMap.values()), rejects};
+    const relayStatus=results.map(r=>({
+      url:r.relay,
+      outcome:r.outcome||'ok',
+      returned:(r.events||[]).length,
+      rejected:rejects.get(r.relay)||0
+    }));
+    return {events:Array.from(eventMap.values()), rejects, relayStatus};
   });
 }
 
 // ── LIBRARY PRESENCE CHECK ──
 // Verification needs ots.min.js. Tell the user up front rather than letting
 // them discover it mid-task. Hashing, encryption and decryption are unaffected.
+function setFooterVersion() {
+  const el=document.getElementById('footer-version');
+  if(el) el.textContent='v'+CK_VERSION;
+}
+document.addEventListener('DOMContentLoaded', setFooterVersion);
+
 function checkOTSLibrary() {
   if(typeof OpenTimestamps !== 'undefined') return;
   const banner=document.createElement('div');
