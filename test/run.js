@@ -307,6 +307,43 @@ section('Reply threading');
 }
 
 
+
+section('Proof recovery from notes');
+{
+  const mod={};
+  new Function('module','exports','base64ToUint8',
+    extract('function proofFromNoteContent(content) {','\nfunction verifyFromStamp') +
+    'module.exports={proofFromNoteContent};'
+  )(mod, mod.exports={}, (b)=>Buffer.from(b,'base64'));
+  const {proofFromNoteContent}=mod.exports;
+
+  const b64='A'.repeat(200);
+  const note='🔑💾 Cypher Keep — Content Authentication Stamp\n\nFile: a.txt\n' +
+             'SHA-256: '+('a'.repeat(64))+'\n\nOTS Proof (pending, base64): '+b64+
+             '\n\nVerify stamp: https://cypherkeep.net';
+  ok('extracts the proof from a stamp note', proofFromNoteContent(note)===b64);
+
+  const conf=note.replace('pending','confirmed');
+  ok('extracts from a confirmation note too', proofFromNoteContent(conf)===b64);
+
+  ok('ignores a note with no proof',
+     proofFromNoteContent('just a regular note about nothing')===null);
+  ok('rejects a truncated proof',
+     proofFromNoteContent('OTS Proof (pending, base64): AAAA')===null);
+  ok('tolerates wrapped base64',
+     proofFromNoteContent('OTS Proof (pending, base64): '+b64.slice(0,100)+'\n'+b64.slice(100))===b64);
+}
+
+section('Verification provenance');
+{
+  ok('a note-sourced verification discloses its source',
+     src.includes("id='verify-source-note'") || src.includes('verify-source-note'));
+  ok('the disclosure clears once a real file is uploaded',
+     src.includes('showVerifySourceNote(false);  // a real file'));
+  ok('relays are carried over from My Stamps',
+     src.includes('window._lastNostrRelays=foundOn.slice()'));
+}
+
 section('Relay filters — NIP-01 indexing');
 {
   // NIP-01 only indexes single-letter tag names. A '#sha256' filter matches
@@ -327,8 +364,8 @@ section('Reply target');
   ok('the oldest event per hash is tracked',
      src.includes('entry.event.created_at < kept.oldest.created_at'));
   ok('My Stamps hands the original note to the Verify tab',
-     src.includes('verifyFromStamp(hash, oldest||e)') &&
-     src.includes('function verifyFromStamp(hash, knownEvent)'));
+     src.includes('verifyFromStamp(hash, oldest||e, foundOn)') &&
+     src.includes('function verifyFromStamp(hash, knownEvent, foundOn)'));
 }
 
 section('Relay handling');
