@@ -306,6 +306,31 @@ section('Reply threading');
      src.includes('decoded[0]===0&&decoded[1]===0&&decoded[2]===32'));
 }
 
+
+section('Relay filters — NIP-01 indexing');
+{
+  // NIP-01 only indexes single-letter tag names. A '#sha256' filter matches
+  // nothing on a spec-compliant relay, so lookups using it silently failed.
+  const filters=[...src.matchAll(/\{kinds:\[1\][^}]*\}/g)].map(m=>m[0]);
+  const bad=filters.filter(f=>/'#[a-zA-Z0-9_]{2,}'\s*:/.test(f));
+  ok('no filter uses a multi-character tag name', bad.length===0,
+     bad.length?bad.join(' | '):'');
+  ok('at least one event lookup exists', filters.length>0);
+  ok('hash matching happens client-side',
+     src.includes("getTag(d[2],'sha256')===hash"));
+  ok('events used for threading are signature-verified',
+     src.includes('await verifyNostrEvent(result, nostrPubkey)'));
+}
+
+section('Reply target');
+{
+  ok('the oldest event per hash is tracked',
+     src.includes('entry.event.created_at < kept.oldest.created_at'));
+  ok('My Stamps hands the original note to the Verify tab',
+     src.includes('verifyFromStamp(hash, oldest||e)') &&
+     src.includes('function verifyFromStamp(hash, knownEvent)'));
+}
+
 section('Relay handling');
 {
   const mod={};
