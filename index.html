@@ -2796,7 +2796,7 @@ let decFile=null, decryptedBlob=null, decryptedName=null;
 // Nostr state
 let nostrPubkey=null;
 let lastPostedEventId=null;
-const CK_VERSION='0.3.9';
+const CK_VERSION='0.3.10';
 const NOSTR_RELAYS=['wss://relay.damus.io','wss://nos.lol','wss://relay.nostr.band'];
 const NOSTR_TAG='cypherkeep';
 
@@ -3875,7 +3875,13 @@ function toggleStampMeta(dropId, btn) {
 }
 
 // ── MY STAMPS — verify button ──
-function verifyFromStamp(hash) {
+function verifyFromStamp(hash, knownEvent) {
+  // My Stamps already holds the verified event. Carry it over rather than
+  // re-querying relays for something we have in hand.
+  if(knownEvent && knownEvent.id){
+    window._lastNostrEventId=knownEvent.id;
+    window._lastNostrNevent=eventIdToNevent(knownEvent.id);
+  }
   switchView('verify');
   setVerifyTab('stamp');
   setVerifyMode('hash');
@@ -4054,7 +4060,10 @@ function moveStampNextAfterNostr() {
 // ── VERIFY TAB — auto-find Nostr event by hash ──
 async function findNostrEventByHash(hash) {
   if(!nostrPubkey||!hash) return null;
-  const filter={kinds:[1],authors:[nostrPubkey],'#sha256':[hash],limit:1};
+  // NIP-01 only indexes single-letter tag names, so '#sha256' as a filter
+  // matches nothing on a spec-compliant relay. Query the indexable '#t' tag
+  // the way My Stamps does, then match the sha256 tag client-side.
+  const filter={kinds:[1],authors:[nostrPubkey],'#t':[NOSTR_TAG],limit:100};
   const relays=getActiveRelays().length>0?getActiveRelays():[...NOSTR_RELAYS];
   for(const url of relays){
     try {
@@ -4067,13 +4076,19 @@ async function findNostrEventByHash(hash) {
         ws.onmessage=e=>{
           try {
             const d=JSON.parse(e.data);
-            if(Array.isArray(d)&&d[0]==='EVENT'&&d[2]){found=d[2];}
+            // Match the sha256 tag ourselves, and keep the oldest match —
+            // the original stamp note rather than a later confirmation note.
+            if(Array.isArray(d)&&d[0]==='EVENT'&&d[2]&&getTag(d[2],'sha256')===hash){
+              if(!found||d[2].created_at<found.created_at) found=d[2];
+            }
             if(Array.isArray(d)&&d[0]==='EOSE'){clearTimeout(timer);ws.close();resolve(found);}
           }catch(_){}
         };
         ws.onerror=()=>{clearTimeout(timer);resolve(null);};
       });
-      if(result) return result;
+      // A relay could return any event it likes. Verify before threading a
+      // reply to it.
+      if(result && await verifyNostrEvent(result, nostrPubkey)) return result;
     }catch(_){}
   }
   return null;
@@ -5268,11 +5283,16 @@ async function loadStamps() {
         const h=getTag(entry.event,'sha256');
         if(!h) return;
         if(!byHash.has(h)){
-          byHash.set(h,{event:entry.event, relays:[...entry.relays], extraTags:{}});
+          byHash.set(h,{event:entry.event, relays:[...entry.relays], extraTags:{},
+                       oldest:entry.event});
           return;
         }
         // older event for a hash already seen — borrow tags the newest lacks
         const kept=byHash.get(h);
+        // Results are newest-first, so each later match is older. The oldest
+        // event for a hash is the original stamp note — that is what a
+        // confirmation reply should thread to, not a later confirmation note.
+        if(entry.event.created_at < kept.oldest.created_at) kept.oldest=entry.event;
         entry.relays.forEach(r=>{ if(!kept.relays.includes(r)) kept.relays.push(r); });
         ['filename','size','type'].forEach(t=>{
           if(!getTag(kept.event,t) && !kept.extraTags[t]){
@@ -5283,7 +5303,7 @@ async function loadStamps() {
       });
     const unique=Array.from(byHash.values());
 
-    unique.forEach(({event:e, relays:foundOn, extraTags}, idx)=>{
+    unique.forEach(({event:e, relays:foundOn, extraTags, oldest}, idx)=>{
       const merged=extraTags||{};
       const hash=getTag(e,'sha256')||'—';
       const fname=getTag(e,'filename')||merged.filename||'Unknown file';
@@ -5325,7 +5345,7 @@ async function loadStamps() {
       const tBtn=item.querySelector('[data-toggle-meta]');
       if(tBtn) tBtn.addEventListener('click',()=>toggleStampMeta(dropId,tBtn));
       const vBtn=item.querySelector('[data-verify-hash]');
-      if(vBtn) vBtn.addEventListener('click',()=>verifyFromStamp(hash));
+      if(vBtn) vBtn.addEventListener('click',()=>verifyFromStamp(hash, oldest||e));
       list.appendChild(item);
     });
 
