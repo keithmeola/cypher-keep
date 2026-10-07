@@ -4042,10 +4042,13 @@ function moveStampNextAfterNostr() {
   const original=document.getElementById('stamp-next');
   const clone=document.getElementById('stamp-next-nostr-clone');
   if(!original||!clone) return;
-  // Hide original, show clone with same content
-  original.style.display='none';
+  // Move the real element rather than cloning its HTML. Cloning duplicated
+  // every id inside it, so getElementById('stamp-check-btn') returned the
+  // hidden original and the confirmation check silently did nothing.
+  if(clone.contains(original)) return;
+  clone.appendChild(original);
   clone.style.display='block';
-  clone.innerHTML=original.outerHTML.replace('id="stamp-next"','id="stamp-next-clone-inner"').replace('style="display:none;','style="display:block;');
+  original.style.display='block';
 }
 
 // ── VERIFY TAB — auto-find Nostr event by hash ──
@@ -4179,9 +4182,26 @@ async function announceConfirmation(hash, calendar, proofName, blockHeight, bloc
       replyId=raw;
     } else if(raw.startsWith('nevent1')) {
       try {
+        // NIP-19 nevent TLV is [type=0x00, len=0x20, ...32 bytes] = 34 bytes.
+        // The old >=35 check was written around the malformed encoding fixed in
+        // v0.3.3, so correctly-formed nevents were rejected. Walk the TLV
+        // properly instead, which also accepts nevents carrying relay hints.
         const decoded=bech32Decode(raw);
-        if(decoded&&decoded.length>=35) {
-          replyId=Array.from(decoded.slice(2,34)).map(b=>b.toString(16).padStart(2,'0')).join('');
+        if(decoded&&decoded.length>=34) {
+          let p=0;
+          while(p+2<=decoded.length){
+            const type=decoded[p], len=decoded[p+1];
+            if(p+2+len>decoded.length) break;
+            if(type===0&&len===32){
+              replyId=Array.from(decoded.slice(p+2,p+34)).map(b=>b.toString(16).padStart(2,'0')).join('');
+              break;
+            }
+            p+=2+len;
+          }
+          // Tolerate the pre-0.3.3 encoding, which carried a leading 0x00.
+          if(!replyId&&decoded.length>=35&&decoded[0]===0&&decoded[1]===0&&decoded[2]===32){
+            replyId=Array.from(decoded.slice(3,35)).map(b=>b.toString(16).padStart(2,'0')).join('');
+          }
         }
       } catch(_){}
     } else if(window._lastNostrEventId) {
