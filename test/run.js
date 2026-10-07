@@ -284,6 +284,28 @@ section('Calendar parsing');
   }
 }
 
+
+section('DOM integrity');
+{
+  // Duplicate ids make getElementById ambiguous — this is how the Stamp tab's
+  // confirmation button stopped working after posting to Nostr.
+  const ids=[...src.matchAll(/\bid="([a-zA-Z0-9_-]+)"/g)].map(m=>m[1]);
+  const dupes=[...new Set(ids.filter((v,i)=>ids.indexOf(v)!==i))];
+  ok('no duplicate element ids in the markup', dupes.length===0,
+     dupes.length?dupes.join(', '):'');
+  ok('stamp-next is moved, not cloned',
+     src.includes('clone.appendChild(original)') && !src.includes('clone.innerHTML=original.outerHTML'));
+}
+
+section('Reply threading');
+{
+  ok('nevent TLV is walked, not length-guessed',
+     src.includes('type===0&&len===32') && !src.includes('decoded.length>=35) {'),
+     'old fixed-length guard still present');
+  ok('pre-0.3.3 nevent encoding still accepted',
+     src.includes('decoded[0]===0&&decoded[1]===0&&decoded[2]===32'));
+}
+
 section('Relay handling');
 {
   const mod={};
