@@ -2796,7 +2796,7 @@ let decFile=null, decryptedBlob=null, decryptedName=null;
 // Nostr state
 let nostrPubkey=null;
 let lastPostedEventId=null;
-const CK_VERSION='0.3.10';
+const CK_VERSION='0.3.11';
 const NOSTR_RELAYS=['wss://relay.damus.io','wss://nos.lol','wss://relay.nostr.band'];
 const NOSTR_TAG='cypherkeep';
 
@@ -3428,6 +3428,7 @@ async function loadVerifyFile(f) {
   const dig=await crypto.subtle.digest('SHA-256',buf);
   verifyHash=Array.from(new Uint8Array(dig)).map(b=>b.toString(16).padStart(2,'0')).join('');
   verifyFile=f;   // retained so metadata exports can record name, size and type
+  showVerifySourceNote(false);  // a real file is now the subject of verification
   showChip('v-file-chip','v-chip-ext','v-chip-name','v-chip-size',f);
   checkVerifyReady();
 }
@@ -3875,12 +3876,38 @@ function toggleStampMeta(dropId, btn) {
 }
 
 // ── MY STAMPS — verify button ──
-function verifyFromStamp(hash, knownEvent) {
+// Pull the base64 proof out of a Cypher Keep note. The proof is written into
+// the note body, so a posted stamp doubles as a backup of its own proof.
+function proofFromNoteContent(content) {
+  if(typeof content!=='string') return null;
+  const marker=/OTS Proof \((?:pending|confirmed), base64\):[ \t]*/;
+  const m=content.match(marker);
+  if(!m) return null;
+  // Take lines only while they are purely base64. A greedy character-class
+  // match would run past the proof into the trailing "Verify stamp:" lines,
+  // because those characters are also in the base64 alphabet.
+  const after=content.slice(m.index+m[0].length);
+  let out='';
+  for(const line of after.split('\n')){
+    const t=line.trim();
+    if(!t) break;
+    if(!/^[A-Za-z0-9+/=]+$/.test(t)) break;
+    out+=t;
+  }
+  if(out.length<80) return null;
+  try {
+    const bytes=base64ToUint8(out);
+    return bytes.length>=50 ? out : null;
+  } catch(_) { return null; }
+}
+
+function verifyFromStamp(hash, knownEvent, foundOn) {
   // My Stamps already holds the verified event. Carry it over rather than
   // re-querying relays for something we have in hand.
   if(knownEvent && knownEvent.id){
     window._lastNostrEventId=knownEvent.id;
     window._lastNostrNevent=eventIdToNevent(knownEvent.id);
+    if(Array.isArray(foundOn) && foundOn.length) window._lastNostrRelays=foundOn.slice();
   }
   switchView('verify');
   setVerifyTab('stamp');
@@ -3894,12 +3921,41 @@ function verifyFromStamp(hash, knownEvent) {
   if(resultEl){resultEl.innerHTML='';resultEl.classList.remove('show');}
   const otsChip=document.getElementById('ots-chip');
   if(otsChip) otsChip.classList.remove('show');
-  // Reset OTS input mode to file
-  setOTSMode('file');
-  // Fill hash
+  // The note carries its own proof. Load it so a lost .ots file is not a
+  // dead end — the Nostr post is a backup of the proof, which is why the
+  // base64 is embedded there in the first place.
+  const b64=knownEvent?proofFromNoteContent(knownEvent.content):null;
   document.getElementById('v-hash-input').value=hash;
+  if(b64){
+    setOTSMode('base64');
+    const b64input=document.getElementById('ots-b64-input');
+    if(b64input){ b64input.value=b64; loadOTSFromBase64(); }
+    showVerifySourceNote(true);
+    toast('Hash and proof loaded from your Nostr note');
+  } else {
+    setOTSMode('file');
+    showVerifySourceNote(false);
+    toast('Hash loaded — drop your .ots proof file to verify');
+  }
   checkVerifyReady();
-  toast('Hash loaded — drop your .ots proof file to verify');
+}
+
+// Both inputs came from the same note, so verification proves the note is
+// internally consistent and anchored to Bitcoin — not that a file you hold is
+// unaltered. Say so rather than letting the green panel imply more.
+function showVerifySourceNote(show) {
+  let el=document.getElementById('verify-source-note');
+  if(!show){ if(el) el.remove(); return; }
+  if(!el){
+    el=document.createElement('div');
+    el.id='verify-source-note';
+    el.style.cssText='margin-bottom:14px;padding:10px 12px;background:rgba(59,130,246,0.07);border:1px solid var(--blue-border);border-radius:8px';
+    el.innerHTML='<span style="font-size:13px;color:var(--blue-lt)">'+
+      'Hash and proof loaded from your Nostr note. This checks the note against Bitcoin. '+
+      'To prove a file you hold is unaltered, switch to <strong>Upload a file</strong> above and select it.</span>';
+    const btn=document.getElementById('verify-btn');
+    if(btn && btn.parentNode) btn.parentNode.insertBefore(el, btn);
+  }
 }
 
 // ── STAMP TAB — check confirmation ──
@@ -5345,7 +5401,7 @@ async function loadStamps() {
       const tBtn=item.querySelector('[data-toggle-meta]');
       if(tBtn) tBtn.addEventListener('click',()=>toggleStampMeta(dropId,tBtn));
       const vBtn=item.querySelector('[data-verify-hash]');
-      if(vBtn) vBtn.addEventListener('click',()=>verifyFromStamp(hash, oldest||e));
+      if(vBtn) vBtn.addEventListener('click',()=>verifyFromStamp(hash, oldest||e, foundOn));
       list.appendChild(item);
     });
 
