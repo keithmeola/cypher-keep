@@ -189,12 +189,38 @@ section('Static analysis');
 }
 
 
+
+section('Per-stamp state isolation');
+{
+  // A second stamp in the same session must not inherit the first stamp's
+  // Nostr event, proof bytes or block height.
+  const body=extract('function resetStampUI() {','\n}\n');
+  const mustClear=['otsBytes','otsFilename','stampedAt','_calendarUsed','_calendarsUsed',
+    '_upgradedOTSBytes','_stampConfirmedBlock','_stampConfirmedBlockTime',
+    '_lastNostrEventId','_lastNostrNevent','_lastNostrRelays',
+    '_confirmNostrEventId','_confirmNostrRelays'];
+  const missing=mustClear.filter(v=>!body.includes(v+'=null'));
+  ok('resetStampUI clears all per-stamp state', missing.length===0,
+     missing.length?'not cleared: '+missing.join(', '):'');
+}
+
+section('Confirmation announcements');
+{
+  ok('the confirmation event is recorded separately',
+     (src.match(/window\._confirmNostrEventId=signed\.id;/g)||[]).length===2,
+     'expected both announce paths to record it');
+  ok('the stamp note is not overwritten by the confirmation',
+     src.includes('nostr_event_id: window._lastNostrEventId') &&
+     src.includes('nostr_confirmation_event_id: window._confirmNostrEventId'));
+}
+
 section('Metadata — one schema');
 {
   const mod={};
   const SCHEMA=['tool','version','file','sha256','timestamp','note','ots_file',
     'ots_proof_base64','calendar','calendars','status','bitcoin_block',
-    'bitcoin_block_time','nostr_event_id','nostr_nevent','nostr_relays','arweave_id'];
+    'bitcoin_block_time','nostr_event_id','nostr_nevent','nostr_relays',
+    'nostr_confirmation_event_id','nostr_confirmation_nevent','arweave_id'];
   try{
     new Function('module','exports','window','CK_VERSION','uint8ToBase64',
       extract('function buildMetadata(o) {','\nfunction saveMetadata') +
@@ -565,6 +591,71 @@ section('Inbound events — signature verification');
 
 // ═══════════════════════════════════════════════════════════
 async function cryptoTests() {
+
+section('SHA-256 — streaming');
+{
+  // crypto.subtle.digest cannot hash more than 2 GB, so large files are
+  // streamed through an incremental implementation. It must agree with the
+  // native one exactly, including across the 2^32-bit length boundary at 512 MiB.
+  const mod={};
+  new Function('module','exports',
+    extract('function CKSha256() {','\nfunction readProgress(f) {') +
+    'module.exports={CKSha256};')(mod, mod.exports={});
+  const {CKSha256}=mod.exports;
+  const crypto2=require('crypto');
+
+  let lenFail=0;
+  for(let n=0;n<=600;n++){
+    const d=crypto2.randomBytes(n);
+    if(new CKSha256().update(new Uint8Array(d)).digest() !==
+       crypto2.createHash('sha256').update(d).digest('hex')) lenFail++;
+  }
+  ok('matches native for every length 0..600', lenFail===0, lenFail+' mismatches');
+
+  let splitFail=0;
+  for(let t=0;t<120;t++){
+    const n=Math.floor(Math.random()*5000), d=crypto2.randomBytes(n);
+    const h=new CKSha256(); let i=0;
+    while(i<n){ const c=1+Math.floor(Math.random()*200); h.update(new Uint8Array(d.subarray(i,i+c))); i+=c; }
+    if(h.digest()!==crypto2.createHash('sha256').update(d).digest('hex')) splitFail++;
+  }
+  ok('chunk boundaries do not affect the result', splitFail===0, splitFail+' mismatches');
+
+  ok('FIPS 180-4 vectors',
+     new CKSha256().update(new TextEncoder().encode('')).digest()===
+       'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855' &&
+     new CKSha256().update(new TextEncoder().encode('abc')).digest()===
+       'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad');
+
+  const mil=new CKSha256(), ch=new Uint8Array(1000).fill(97);
+  for(let i=0;i<1000;i++) mil.update(ch);
+  ok('one million "a" vector',
+     mil.digest()==='cdc76e5c9914fb9281a1c7e284d73e67f1809a48a497200e046d39ccc7112cd0');
+
+  // 2^32-bit boundary: 512 MiB of data. Compared against native streaming.
+  const big=new CKSha256(), ref=crypto2.createHash('sha256');
+  const mb=crypto2.randomBytes(1<<20);
+  for(let i=0;i<513;i++){ big.update(new Uint8Array(mb)); ref.update(mb); }
+  ok('correct past the 2^32-bit length boundary (513 MiB)',
+     big.digest()===ref.digest('hex'));
+
+  ok('large files are routed to the streaming path',
+     src.includes('CK_STREAM_THRESHOLD') &&
+     src.includes('file.slice(offset, end).arrayBuffer()'));
+  // The user-file entry points must go through hashFile. subtle.digest is
+  // still used inside hashFile's fast path and for the page self-hash, which
+  // are both bounded in size.
+  const userPaths=['async function computeHash(f) {','async function computeVhHash(f) {',
+                   'async function loadVerifyFile(f) {'];
+  const offenders=userPaths.filter(sig=>{
+    const i=src.indexOf(sig); if(i===-1) return false;
+    const body=src.slice(i, src.indexOf('\n}\n', i));
+    return body.includes('subtle.digest') || !body.includes('hashFile(');
+  });
+  ok('every user-file path hashes via hashFile', offenders.length===0,
+     offenders.length?offenders.join(' | '):'');
+}
+
 section('NIP-44 — official spec vectors');
 {
   const nip44 = extract('async function nip44GetConversationKey', 'async function nip46Decrypt');
