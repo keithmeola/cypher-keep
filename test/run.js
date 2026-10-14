@@ -202,6 +202,17 @@ section('Per-stamp state isolation');
   const missing=mustClear.filter(v=>!body.includes(v+'=null'));
   ok('resetStampUI clears all per-stamp state', missing.length===0,
      missing.length?'not cleared: '+missing.join(', '):'');
+
+  // Clearing the data is not enough — the Nostr panel would still read
+  // "Posted ✓" with the previous stamp's relay results when shown again.
+  const uiReset=['post-nostr-btn','nostr-post-success','nostr-relay-results',
+                 'stamp-next-nostr-clone','stamp-confirm-result','stamp-confirmed-btns',
+                 'stamp-check-btn','nostr-message'];
+  const uiMissing=uiReset.filter(id=>!body.includes(id));
+  ok('resetStampUI restores the Nostr and confirmation panels', uiMissing.length===0,
+     uiMissing.length?'not reset: '+uiMissing.join(', '):'');
+  ok('the post button keeps its icon when restored',
+     body.includes('window._postBtnHTML') && !body.includes("postBtn.textContent="));
 }
 
 section('Confirmation announcements');
@@ -591,6 +602,28 @@ section('Inbound events — signature verification');
 
 // ═══════════════════════════════════════════════════════════
 async function cryptoTests() {
+
+
+section('File type validation');
+{
+  // accept="" is advisory: bypassed by "All files" in the picker and ignored
+  // entirely by drag and drop. Validation must look at the content.
+  ok('the proof input checks the OpenTimestamps magic bytes',
+     src.includes('OTS_MAGIC') && src.includes('is not an OpenTimestamps proof'));
+  ok('the proof input rejects implausibly large files',
+     src.includes('OTS_MAX_BYTES') && src.includes('an .ots proof is only a few kilobytes'));
+  ok('the decrypt input checks the age header',
+     src.includes("AGE_HEADER = 'age-encryption.org/v1'") &&
+     src.includes('is not an age-encrypted file'));
+  ok('rejections tell the user what to do instead',
+     src.includes('Select the .ots file created when the content was stamped') &&
+     src.includes('Select the file produced by the Encrypt tab'));
+  ok('the same file can be retried after rejection',
+     src.includes("inp.value='';"));
+  ok('validation reads only a slice, not the whole file',
+     src.includes('f.slice(0, OTS_MAGIC.length)') &&
+     src.includes('f.slice(0, AGE_HEADER.length)'));
+}
 
 section('SHA-256 — streaming');
 {
