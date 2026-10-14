@@ -2796,7 +2796,7 @@ let decFile=null, decryptedBlob=null, decryptedName=null;
 // Nostr state
 let nostrPubkey=null;
 let lastPostedEventId=null;
-const CK_VERSION='0.3.13';
+const CK_VERSION='0.3.15';
 const NOSTR_RELAYS=['wss://relay.damus.io','wss://nos.lol','wss://relay.nostr.band'];
 const NOSTR_TAG='cypherkeep';
 
@@ -2907,7 +2907,13 @@ function makeDrop(zoneId, inputId, handler) {
   zone.addEventListener('dragover',e=>{e.preventDefault();zone.classList.add('drag-over');});
   zone.addEventListener('dragleave',()=>zone.classList.remove('drag-over'));
   zone.addEventListener('drop',e=>{e.preventDefault();zone.classList.remove('drag-over');if(e.dataTransfer.files[0])handler(e.dataTransfer.files[0]);});
-  inp.addEventListener('change',()=>{if(inp.files[0])handler(inp.files[0]);});
+  inp.addEventListener('change',()=>{
+    const f=inp.files[0];
+    // Clear the input so selecting the same file again still fires a change
+    // event — otherwise a rejected file cannot be retried.
+    inp.value='';
+    if(f) handler(f);
+  });
 }
 
 makeDrop('drop-zone','file-input',loadFile);
@@ -2985,6 +2991,38 @@ function resetStampUI() {
   document.getElementById('stamp-next').style.display='none';
   document.getElementById('prog-bar').style.width='0%';
   document.getElementById('nostr-post-section').style.display='none';
+
+  // Restore the Nostr post UI. Hiding the section is not enough — when it is
+  // shown again for the next stamp it would still read "Posted ✓" with the
+  // previous stamp's relay results and links underneath.
+  const postBtn=document.getElementById('post-nostr-btn');
+  if(postBtn){
+    postBtn.disabled=false;
+    // The button holds an inline SVG, so restore the markup captured at load
+    // rather than setting textContent, which would drop the icon.
+    if(window._postBtnHTML!==undefined) postBtn.innerHTML=window._postBtnHTML;
+  }
+  const postSuccess=document.getElementById('nostr-post-success');
+  if(postSuccess) postSuccess.style.display='none';
+  const relayResults=document.getElementById('nostr-relay-results');
+  if(relayResults) relayResults.innerHTML='';
+  const eventLink=document.getElementById('nostr-event-link');
+  if(eventLink) eventLink.href='#';
+  const nostrClone=document.getElementById('stamp-next-nostr-clone');
+  if(nostrClone){ nostrClone.style.display='none'; nostrClone.innerHTML=''; }
+  const nextNostr=document.getElementById('stamp-next-nostr');
+  if(nextNostr) nextNostr.style.display='none';
+  const msgEl=document.getElementById('nostr-message');
+  if(msgEl) msgEl.value='';
+
+  // Confirmation sub-panel from the previous stamp
+  const confirmResult=document.getElementById('stamp-confirm-result');
+  if(confirmResult){ confirmResult.style.display='none'; confirmResult.innerHTML=''; }
+  const confirmBtns=document.getElementById('stamp-confirmed-btns');
+  if(confirmBtns) confirmBtns.style.display='none';
+  const checkBtn=document.getElementById('stamp-check-btn');
+  if(checkBtn){ checkBtn.disabled=false; checkBtn.textContent='Check Bitcoin confirmation'; }
+
   // Clear note field so it doesn't persist between stamps
   const noteEl=document.getElementById('note-input');
   if(noteEl) noteEl.value='';
@@ -3569,7 +3607,30 @@ async function loadVerifyFile(f) {
   checkVerifyReady();
 }
 
+// An .ots proof is a few hundred bytes to a few kilobytes. Anything wildly
+// larger is the wrong file, and reading it would be pointless and slow.
+const OTS_MAX_BYTES = 4 * 1024 * 1024;
+const OTS_MAGIC = [0x00,0x4f,0x70,0x65,0x6e,0x54,0x69,0x6d,0x65,0x73,0x74,0x61,0x6d,0x70,0x73,0x00];
+
 async function loadOTSFile(f) {
+  // Validate by content, not by filename. The accept attribute is advisory —
+  // it is bypassed by "All files" in the picker and ignored entirely by
+  // drag and drop, so an unrelated file would otherwise be read as a proof.
+  if(f.size > OTS_MAX_BYTES){
+    toast(`That file is ${fmtBytes(f.size)} — an .ots proof is only a few kilobytes. Wrong file?`, true);
+    return;
+  }
+  if(f.size < 32){
+    toast('That file is too small to be an OpenTimestamps proof.', true);
+    return;
+  }
+  const head=new Uint8Array(await f.slice(0, OTS_MAGIC.length).arrayBuffer());
+  for(let i=0;i<OTS_MAGIC.length;i++){
+    if(head[i]!==OTS_MAGIC[i]){
+      toast(`${f.name} is not an OpenTimestamps proof. Select the .ots file created when the content was stamped.`, true);
+      return;
+    }
+  }
   verifyOTS=new Uint8Array(await f.arrayBuffer());
   verifyOTSName=f.name;
   document.getElementById('ots-chip-name').textContent=f.name;
@@ -4527,7 +4588,20 @@ function downloadEncrypted() {
   toast('Downloading '+encryptedName);
 }
 
-function loadDecFile(f) {
+const AGE_HEADER = 'age-encryption.org/v1';
+
+async function loadDecFile(f) {
+  // Same reasoning as the proof input: validate the content, not the name.
+  try {
+    const head=new TextDecoder().decode(await f.slice(0, AGE_HEADER.length).arrayBuffer());
+    if(head!==AGE_HEADER){
+      toast(`${f.name} is not an age-encrypted file. Select the file produced by the Encrypt tab.`, true);
+      return;
+    }
+  } catch(_) {
+    toast('Could not read that file.', true);
+    return;
+  }
   decFile=f;
   document.getElementById('dec-chip-name').textContent=f.name;
   document.getElementById('dec-chip-size').textContent=fmtBytes(f.size);
@@ -5623,6 +5697,14 @@ function queryRelayForStamps(pubkey) {
 // ── LIBRARY PRESENCE CHECK ──
 // Verification needs ots.min.js. Tell the user up front rather than letting
 // them discover it mid-task. Hashing, encryption and decryption are unaffected.
+// Capture button markup that gets replaced during use, so it can be restored
+// between stamps without losing inline icons.
+function captureButtonMarkup() {
+  const b=document.getElementById('post-nostr-btn');
+  if(b && window._postBtnHTML===undefined) window._postBtnHTML=b.innerHTML;
+}
+document.addEventListener('DOMContentLoaded', captureButtonMarkup);
+
 function setFooterVersion() {
   const el=document.getElementById('footer-version');
   if(el) el.textContent='v'+CK_VERSION;
